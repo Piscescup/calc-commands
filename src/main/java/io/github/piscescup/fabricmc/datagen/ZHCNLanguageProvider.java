@@ -13,7 +13,43 @@ public final class ZHCNLanguageProvider extends FabricLanguageProvider {
 
 	@Override
 	public void generateTranslations(HolderLookup.Provider registryLookup, TranslationBuilder translationBuilder) {
-		translationBuilder.add("commands.calc.help.syntax", "/calc <表达式> | 运算符：+ - * / %% ^ | 常量：pi、e、ans（不区分大小写）| 角度使用弧度；支持 2^-3 和 2^(-3)。");
+		translationBuilder.add("commands.calc.help.header", "可用命令：");
+		translationBuilder.add("commands.calc.help.description_label", "介绍：");
+		translationBuilder.add("commands.calc.help.param_label", "参数：");
+		translationBuilder.add("commands.calc.help.usage_label", "用法：");
+		translationBuilder.add("commands.calc.help.detail.expression.description", "计算一个表达式，并保存最后一次成功结果到 ans。");
+		translationBuilder.add("commands.calc.help.detail.expression.params", "- <expression>：要计算的数学表达式，可使用数字、常量、函数、运算符和 ans。");
+		translationBuilder.add("commands.calc.help.detail.expression.usage", "/calc expression sin(pi/2)+ans");
+		translationBuilder.add("commands.calc.help.detail.solve.description", "在实数范围内求解一个方程或方程组。");
+		translationBuilder.add("commands.calc.help.detail.solve.params", "- <equations>：方程；多条方程用分号分隔。\n       - <variables>：待求变量；多个变量用逗号分隔。");
+		translationBuilder.add("commands.calc.help.detail.solve.usage", "/calc solve 2*x+y=10;x+y=7 x,y");
+		translationBuilder.add("commands.calc.help.detail.expand.description", "展开乘积或幂形式的符号表达式。");
+		translationBuilder.add("commands.calc.help.detail.expand.params", "- <expression>：要展开的符号表达式。");
+		translationBuilder.add("commands.calc.help.detail.expand.usage", "/calc expand (x+1)^3");
+		translationBuilder.add("commands.calc.help.detail.factor.description", "对符号表达式进行因式分解。");
+		translationBuilder.add("commands.calc.help.detail.factor.params", "- <expression>：要因式分解的符号表达式。");
+		translationBuilder.add("commands.calc.help.detail.factor.usage", "/calc factor x^2-1");
+		translationBuilder.add("commands.calc.help.detail.diff.description", "按给出的求导变量顺序对函数求导。");
+		translationBuilder.add("commands.calc.help.detail.diff.params", "- <function>：要进行求导的函数。\n       - <variables>：求导变量；用逗号分隔可依次求高阶或混合偏导。");
+		translationBuilder.add("commands.calc.help.detail.diff.usage", "/calc diff x^2*y x,y");
+		translationBuilder.add("commands.calc.help.detail.integrate.description", "计算给定积分上下限的定积分。");
+		translationBuilder.add("commands.calc.help.detail.integrate.params", "- <integrand>：被积函数。\n       - <variable>：积分变量。\n       - <lower-limit>：积分下限。\n       - <upper-limit>：积分上限。");
+		translationBuilder.add("commands.calc.help.detail.integrate.usage", "/calc integrate sin(x) x 0 pi");
+		translationBuilder.add("commands.calc.help.detail.numfmt.description", "配置物品数量的盒、组和余数显示方式。");
+		translationBuilder.add("commands.calc.help.detail.numfmt.params", "- <subcommand>：default、able、disable、scope、format 或 template。\n       - <value>：所选子命令的配置值；省略时显示当前值。");
+		translationBuilder.add("commands.calc.help.detail.numfmt.usage", "/calc numfmt format all");
+		translationBuilder.add("commands.calc.help.detail.config.description", "配置计算结果的显示方式，不改变实际结果或 ans。");
+		translationBuilder.add("commands.calc.help.detail.config.params", "- <setting>：default 或 power-order。\n       - <value>：ascending、descending 或 default；省略时显示当前值。");
+		translationBuilder.add("commands.calc.help.detail.config.usage", "/calc config power-order descending");
+		translationBuilder.add("commands.calc.help.footer", "使用 /calc help [命令] 查看指定命令的详细说明。");
+		translationBuilder.add("commands.calc.help.command.expression", "/calc expression <表达式>：计算表达式");
+		translationBuilder.add("commands.calc.help.command.solve", "/calc solve <方程> <变量>：求解实数方程或方程组");
+		translationBuilder.add("commands.calc.help.command.expand", "/calc expand <表达式>：展开表达式");
+		translationBuilder.add("commands.calc.help.command.factor", "/calc factor <表达式>：因式分解");
+		translationBuilder.add("commands.calc.help.command.diff", "/calc diff <函数> <变量>：按顺序求导");
+		translationBuilder.add("commands.calc.help.command.integrate", "/calc integrate <被积函数> <积分变量> <积分下限> <积分上限>：计算定积分");
+		translationBuilder.add("commands.calc.help.command.numfmt", "/calc numfmt [default|able|disable|scope|format|template]：管理数量格式；不带子命令时显示当前配置");
+		translationBuilder.add("commands.calc.help.command.config", "/calc config [default|power-order]：管理计算结果的显示方式；不带子命令时显示当前配置");
 		translationBuilder.add("commands.calc.help.functions", "函数：%s。ln(x) 为自然对数，lg(x) 为常用对数，log2(x) 以 2 为底，log(base, x) 可指定底数。n(x, digits) 求小数近似；ans 精确保留上一次成功结果。");
 		translationBuilder.add("commands.calc.error.expected_operand", "此处需要数字、常量、函数或左括号");
 		translationBuilder.add("commands.calc.error.expected_operator", "此处需要运算符；乘法需要显式输入 *");
@@ -40,8 +76,11 @@ public final class ZHCNLanguageProvider extends FabricLanguageProvider {
 		translationBuilder.add("commands.calc.error.calculation_timeout", "计算超时，请简化表达式");
 		translationBuilder.add("commands.calc.error.calculation_busy", "计算器正在忙，请等待待处理的计算完成");
 		translationBuilder.add("commands.calc.error.invalid_precision", "有效数字位数必须是 1 至 %s 的整数");
-		translationBuilder.add("commands.calc.help.symbolic", "符号计算：/calc solve <方程> <变量> | expand <表达式> | factor <表达式> | diff <函数> <变量> | integrate <函数> <变量> <下限> <上限>");
 		translationBuilder.add("commands.calc.help.symbolic_variables", "多条方程用分号分隔，多个变量用逗号分隔（逗号两侧不加空格）。diff 的 x,y 表示依次求导，x,x 表示二阶导数。solve 求实数解。积分上下限可为表达式；带空格时需加括号。");
+		translationBuilder.add("commands.calc.help.numfmt.scope", "范围：/calc numfmt scope [default|show|<add|remove> <expression|factor|integrate|solve>]；不带参数时显示当前值。");
+		translationBuilder.add("commands.calc.help.numfmt.format", "数值类型：/calc numfmt format [integer|double|all|default]；不带参数时显示当前值，默认为 integer。");
+		translationBuilder.add("commands.calc.help.numfmt.template", "模板：/calc numfmt template [default|<模板> [--stack <每组数量>]]；不带参数时显示当前值，输入模板时可用 Tab 选择预设，{} 必须成对出现。");
+		translationBuilder.add("commands.calc.help.config.power_order", "多项式排列：/calc config power-order [ascending|descending|default]；不带参数时显示当前值，默认为 ascending（升幂）。");
 		translationBuilder.add("commands.calc.error.symbolic_arguments", "缺少命令参数。用法：%s");
 		translationBuilder.add("commands.calc.error.invalid_variable", "无效变量“%s”；使用 1 至 32 位字母、数字或下划线，以字母开头，并避开函数和常量名称");
 		translationBuilder.add("commands.calc.error.duplicate_variable", "求解变量“%s”重复");
@@ -72,5 +111,22 @@ public final class ZHCNLanguageProvider extends FabricLanguageProvider {
 		translationBuilder.add("commands.calc.feedback.derivative_label", "导数：");
 		translationBuilder.add("commands.calc.feedback.integral_label", "积分值：");
 		translationBuilder.add("commands.calc.feedback.approximate_label", "近似值：");
+		translationBuilder.add("commands.calc.numfmt.enabled", "数量格式已启用");
+		translationBuilder.add("commands.calc.numfmt.disabled", "数量格式已禁用");
+		translationBuilder.add("commands.calc.numfmt.scope_added", "已添加格式化范围：%s");
+		translationBuilder.add("commands.calc.numfmt.scope_removed", "已移除格式化范围：%s");
+		translationBuilder.add("commands.calc.numfmt.scope", "格式化范围：%s");
+		translationBuilder.add("commands.calc.numfmt.settings", "数量格式配置：启用=%s；范围=%s；数值类型=%s；模板=%s；每组数量=%s");
+		translationBuilder.add("commands.calc.numfmt.format", "格式化数值类型：%s");
+		translationBuilder.add("commands.calc.numfmt.template", "格式模板：%s；每组数量：%s");
+		translationBuilder.add("commands.calc.numfmt.reset", "已恢复默认数量格式设置：%s");
+		translationBuilder.add("commands.calc.numfmt.format_updated", "格式化数值类型已更新：%s");
+		translationBuilder.add("commands.calc.numfmt.template_updated", "格式模板已更新：%s；每组数量：%s");
+		translationBuilder.add("commands.calc.numfmt.error.invalid_template", "格式模板只能使用成对的空占位符 {}，且长度不能超过 256 个字符");
+		translationBuilder.add("commands.calc.numfmt.error.save_failed", "无法保存数量格式配置，请检查配置目录的写入权限");
+		translationBuilder.add("commands.calc.config.power_order_updated", "多项式排列方式已更新：%s");
+		translationBuilder.add("commands.calc.config.power_order", "当前多项式排列：%s");
+		translationBuilder.add("commands.calc.config.reset", "计算器显示配置已恢复默认值");
+		translationBuilder.add("commands.calc.config.error.save_failed", "无法保存计算器显示配置，请检查配置目录的写入权限");
 	}
 }

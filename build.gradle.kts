@@ -1,4 +1,5 @@
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.kotlin.dsl.testImplementation
 
 plugins {
 	base
@@ -46,7 +47,8 @@ dependencies {
 		exclude(group = "it.unimi.dsi", module = "fastutil-core")
 	}
 
-	testImplementation("junit:junit:4.13.2")
+//	testImplementation("junit:junit:4.13.2")
+	testImplementation("net.fabricmc:fabric-loader-junit:${providers.gradleProperty("loader_version").get()}")
 }
 
 // Loom deliberately makes include non-transitive. Include every resolved runtime module,
@@ -57,7 +59,7 @@ symjaLibraries.incoming.artifacts.artifacts.forEach { artifact ->
 }
 
 tasks.test {
-	useJUnit()
+	useJUnitPlatform()
 }
 
 tasks.processResources {

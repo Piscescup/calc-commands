@@ -1,0 +1,7 @@
+[23:21:16] [Test worker/INFO]: factor factory = edu.jas.arith.ModLongRing
+[23:21:16] [Test worker/INFO]: base facs for P = x^2 - 1 
+[23:21:16] [Test worker/INFO]: z, k = x^2 - 1 , 1
+[23:21:16] [Test worker/INFO]: factors = {2=1}
+[23:21:16] [Test worker/INFO]: cyclotomicFactors: #factors = 2
+[23:21:16] [Test worker/INFO]: #Fi = 1
+[23:21:16] [Test worker/INFO]: #Gi = 1

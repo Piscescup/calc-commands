@@ -2,9 +2,11 @@ package io.github.piscescup.fabricmc.calculation;
 
 import java.util.Set;
 
-/** Common immutable input and diagnostics shared by all calculator requests. */
+/**
+ * Common immutable input and diagnostics shared by all calculator requests.
+ */
 public abstract sealed class CalcRequest
-        permits ExpressionRequest, SolveRequest, DiffRequest, IntegrateRequest
+    permits ExpressionRequest, SolveRequest, DiffRequest, IntegrateRequest
 {
     public enum Operation {
         EXPRESSION("expression", "<expression>"),
@@ -12,7 +14,7 @@ public abstract sealed class CalcRequest
         EXPAND("expand", "<expression>"),
         FACTOR("factor", "<expression>"),
         DIFF("diff", "<function> <variables>"),
-        INTEGRATE("integrate", "<function> <variable> <from> <to>");
+        INTEGRATE("integrate", "<integrand> <variable> <lower-limit> <upper-limit>");
 
         private final String command;
         private final String arguments;
@@ -26,12 +28,16 @@ public abstract sealed class CalcRequest
             return command;
         }
 
-        public String syntax() {
+        String syntax() {
             return "/calc " + command + " " + arguments;
         }
     }
 
-    record Part(String text, int offset) {}
+    record Part(
+        String text,
+        int offset
+    ) {
+    }
 
     private final Operation operation;
     private final String source;
@@ -45,9 +51,23 @@ public abstract sealed class CalcRequest
         this.symbols = Set.copyOf(symbols);
     }
 
-    public final Operation operation() { return operation; }
-    public final String source() { return source; }
-    public final String expressionSource() { return expression.text(); }
-    final Part expression() { return expression; }
-    final Set<String> symbols() { return symbols; }
+    public final Operation operation() {
+        return operation;
+    }
+
+    final String source() {
+        return source;
+    }
+
+    public final String expressionSource() {
+        return expression.text();
+    }
+
+    final Part expression() {
+        return expression;
+    }
+
+    final Set<String> symbols() {
+        return symbols;
+    }
 }

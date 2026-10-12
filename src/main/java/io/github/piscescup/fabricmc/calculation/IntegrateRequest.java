@@ -7,17 +7,17 @@ import java.util.Set;
  */
 public final class IntegrateRequest extends CalcRequest {
     private final String variable;
-    private final Part from;
-    private final Part to;
+    private final Part lowerBound;
+    private final Part upperBound;
 
     IntegrateRequest(
         String source, Part expression, Set<String> symbols,
-        String variable, Part from, Part to
+        String variable, Part lowerBound, Part upperBound
     ) {
         super(Operation.INTEGRATE, source, expression, symbols);
         this.variable = variable;
-        this.from = from;
-        this.to = to;
+        this.lowerBound = lowerBound;
+        this.upperBound = upperBound;
     }
 
     public String variable() {
@@ -25,18 +25,18 @@ public final class IntegrateRequest extends CalcRequest {
     }
 
     public String lowerBoundSource() {
-        return from.text();
+        return lowerBound.text();
     }
 
     public String upperBoundSource() {
-        return to.text();
+        return upperBound.text();
     }
 
-    Part from() {
-        return from;
+    Part lowerBound() {
+        return lowerBound;
     }
 
-    Part to() {
-        return to;
+    Part upperBound() {
+        return upperBound;
     }
 }

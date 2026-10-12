@@ -7,9 +7,22 @@ import java.math.BigDecimal;
  * An iterative, bounded scanner shared by validation and symbolic expression construction.
  */
 final class ExpressionLexer {
-    enum Kind {NUMBER, NAME, OPERATOR, OPEN, CLOSE, COMMA, END}
+    enum Kind {
+        NUMBER,
+        NAME,
+        OPERATOR,
+        OPEN,
+        CLOSE,
+        COMMA,
+        END
+    }
 
-    record Token(Kind kind, String text, int start, int end) {
+    record Token(
+        Kind kind,
+        String text,
+        int start,
+        int end
+    ) {
     }
 
     private final String source;
@@ -70,7 +83,8 @@ final class ExpressionLexer {
         if (isNameStart(c)) {
             while (cursor < source.length() && (isNameStart(source.charAt(cursor)) || isDigit(source.charAt(cursor))))
                 cursor++;
-            return new Token(Kind.NAME, source.substring(start, cursor)
+            return new Token(
+                Kind.NAME, source.substring(start, cursor)
                 .toLowerCase(Locale.ROOT), start, cursor
             );
         }

@@ -3,17 +3,17 @@
 适用于 Minecraft 26.3 的 Fabric 客户端计算器，使用 Symja 3.2.0 进行符号计算和高精度数值计算。
 
 ```text
-/calc 1+2*3
-/calc sin(pi/2)
-/calc sqrt(3^2+4^2)
-/calc 2^(-3)
-/calc log(2,8)
-/calc sin(100*pi)
-/calc 1/3+1/6
-/calc sqrt(8)
-/calc n(sqrt(2),30)
-/calc ans*2
-/calc help
+/calc expression 1+2*3
+/calc expression sin(pi/2)
+/calc expression sqrt(3^2+4^2)
+/calc expression 2^(-3)
+/calc expression log(2,8)
+/calc expression sin(100*pi)
+/calc expression 1/3+1/6
+/calc expression sqrt(8)
+/calc expression n(sqrt(2),30)
+/calc expression ans*2
+/calc help [命令]
 ```
 
 - 输入时校验语法，`sin(`、`1+`、缺失括号和错误参数数量会交给 Minecraft 原生标红并提示。
@@ -21,7 +21,8 @@
 - 按回车后才在后台线程调用 Symja 计算；输入校验和补全不改变 `ans`。
 - `ans` 初始为 0，精确保留本次游戏运行中最后一次成功结果；计算失败不覆盖答案。
 - 三角函数使用弧度。乘法必须写 `*`。支持 `2^-3` 和 `2^(-3)`。
-- 支持三角函数、`sqrt`、`atan2(y, x)`、`sum`、`avg` 等；`ln(x)` 为自然对数，`lg(x)` 为常用对数，`log2(x)` 以 2 为底，`log(base, x)` 指定底数。`/calc help` 列出全部函数。
+- 支持三角函数、`sqrt`、`atan2(y, x)`、`sum`、`avg` 等；`ln(x)` 为自然对数，`lg(x)` 为常用对数，`log2(x)` 以 2 为底，`log(base, x)` 指定底数。`/calc help expression` 列出全部函数。
+- `/calc help <command>` 会显示该命令的介绍、逐项参数说明、用法示例及相关补充规则。
 - 整数、分数和有限小数字面量精确保留，π 和 e 保留为符号；例如 `sin(100*pi) = 0`，`0.1+0.2 = 3/10 ≈ 0.3`。
 - 分数、根式等同时显示精确形式和 30 位有效数字的近似值；使用 `n(expr, digits)`（也支持 `N`）只求小数近似，精度范围为 1–1000 位。显式近似后的 `ans` 也会是近似值。
 - 普通计算只接受计算器函数和常量；符号子命令额外接受变量、方程和符号结果。变量及函数名不区分大小写。不开放变量赋值或 Symja 脚本。
@@ -52,7 +53,7 @@
 | 展开 | `/calc expand <expression>` | 如 `(x+1)^3` → `1+3*x+3*x^2+x^3` |
 | 因式分解 | `/calc factor <expression>` | 如 `x^2-1` → `(-1+x)*(1+x)` |
 | 求导 | `/calc diff <function> <variables>` | `x,y` 表示先对 x、再对 y 求导；`x,x` 表示对 x 求二阶导数 |
-| 定积分 | `/calc integrate <function> <variable> <from> <to>` | 如 `x^2 x 0 3` → `9`；上下限可用 `pi` 等数值表达式 |
+| 定积分 | `/calc integrate <integrand> <variable> <lower-limit> <upper-limit>` | 如 `x^2 x 0 3` → `9`；上下限可用 `pi` 等数值表达式 |
 
 - 表达式可包含空格，也可整体用双引号包住，例如 `/calc diff "x^3 + 2*x" x`。
 - 变量列表中的逗号两侧不要加空格，例如写 `x,y`。变量以字母开头，最多 32 位，可包含字母、数字和下划线；不能使用函数名或 `pi`、`e`、`ans`。
@@ -61,6 +62,39 @@
 - 方程组输出 `{{x->3,y->4}}` 这样的解集；`->` 表示变量取值，`{}` 表示没有实数解，`{{}}` 表示方程恒成立、未限制变量。
 - `ans` 也保留最后一次成功的符号结果，例如先 `/calc diff x^3 x`，再 `/calc diff ans x` → `6*x`。解集也可存入 `ans`，但不应将解集当作标量进行四则运算。
 - 每个请求最多 16 条方程、16 个不同符号、16 次连续求导，并沿用原有输入、表达式树、输出及后台计算限制。求解和积分能力取决于 Symja；无法完成的计算会显示错误，保留原 `ans`。
+
+## 物品数量格式
+
+数量格式功能默认关闭，只转换所选计算类型的非负数值结果。默认只格式化整数；可切换为只格式化非整数或格式化全部数值。每个潜影盒按 27 组计算，每组物品数默认为 64。
+
+```text
+/calc numfmt able
+/calc numfmt disable
+/calc numfmt default
+/calc numfmt scope add expression
+/calc numfmt scope remove solve
+/calc numfmt scope [default|show]
+/calc numfmt format [integer|double|all|default]
+/calc numfmt template
+/calc numfmt template "{} S.B.(s) + {} Stack(s) + {} Item(s)" --stack 64
+/calc numfmt template default
+```
+
+配置保存在 `config/calc-commands/num_fmt_cfg.json`，命令成功后立即写入磁盘并更新当前运行时配置。输入模板时可按 Tab 选择 `SUGGESTION_TEMPLATES` 中的预设；花括号只能以 `{}` 成对出现。
+每条格式化结果都会先显示原值，例如 `1234=0 S.B.(s) + 19 Stack(s) + 18 Item(s) at Stack=64`。非整数的精确结果会把整数部分套入模板，并在最后追加真分数，例如 `327803/2500=2 Stack(s) + 3 Item(s) + 303/2500 at Stack=64`；近似结果会合并为小数，例如 `131.1212=2 Stack(s) + 3.1212 Item(s) at Stack=64`。
+
+## 显示配置
+
+符号结果的加法项顺序可以动态切换：
+
+```text
+/calc config power-order ascending
+/calc config power-order descending
+/calc config power-order default
+/calc config default
+```
+
+`ascending` 为默认值，按升幂显示为 `1 + x + x²`；`descending` 按降幂显示为 `x² + x + 1`，并同样处理括号中的多项式。配置命令或具体配置项后不带参数时会显示当前值，使用 `default` 可恢复默认值。此设置只改变聊天显示，不改变计算结果或 `ans`，配置保存在 `config/calc-commands/calc_cfg.json`。旧的 `termOrder` 配置会自动映射到新的排列方式。
 
 ## Build and test
 
@@ -71,7 +105,7 @@
 ```
 
 分发文件在 `build/libs/`。Symja 及其运行依赖随 mod 以独立嵌套 jar 打包，无需单独安装。当前发布包约 27.5 MB。
-测试覆盖精确分数、π 和根式、指定精度、运算规则、方程与方程组、展开与因式分解、多变量求导、定积分、未完成输入位置、补全、精确答案复用和资源限制。
+JUnit 测试覆盖命令树、默认值与无参数查询路径、输入校验和补全、精确数值与 `ans`、展开/因式分解/求导/定积分/求解、数量格式、升降幂显示，以及中英文帮助资源完整性。
 
 ## 翻译数据生成
 

@@ -5,9 +5,12 @@ import io.github.piscescup.fabricmc.calculation.CalcRequest;
 import io.github.piscescup.fabricmc.calculation.DiffRequest;
 import io.github.piscescup.fabricmc.calculation.IntegrateRequest;
 import io.github.piscescup.fabricmc.calculation.SolveRequest;
+import io.github.piscescup.fabricmc.config.NumFormatConfig;
+import io.github.piscescup.fabricmc.config.DisplayConfig;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -61,7 +64,7 @@ final class CalculationFeedback {
                 case INTEGRATE -> "integral_label";
                 default -> "result_label";
             };
-            result(message, result, resultLabel);
+            result(message, request.operation(), result, resultLabel);
         }
         return message;
     }
@@ -86,10 +89,16 @@ final class CalculationFeedback {
             .append(Component.literal(value).withStyle(color));
     }
 
-    private static void result(MutableComponent message, CalculatorEngine.Result result, String label) {
-        field(message, label, pretty(result.exact()), ChatFormatting.GREEN);
+    private static void result(MutableComponent message, CalcRequest.Operation operation,
+            CalculatorEngine.Result result, String label) {
+        Optional<String> exact = result.value().isInexactNumber()
+            ? NumFormatConfig.formatApproximate(operation, result.exact())
+            : NumFormatConfig.format(operation, result.exact());
+        field(message, label, exact.orElseGet(() -> prettyResult(result.exact())), ChatFormatting.GREEN);
         if (result.approximate() != null) {
-            field(message, "approximate_label", pretty(result.approximate()), ChatFormatting.YELLOW);
+            Optional<String> approximate = NumFormatConfig.formatApproximate(operation, result.approximate());
+            field(message, "approximate_label",
+                approximate.orElseGet(() -> prettyResult(result.approximate())), ChatFormatting.YELLOW);
         }
     }
 
@@ -116,16 +125,25 @@ final class CalculationFeedback {
                 for (int j = 1; j < assignments.size(); j++) {
                     IExpr assignment = assignments.get(j);
                     if (assignment instanceof IAST rule && rule.head().equals(S.Rule) && rule.size() == 3) {
-                        values.add(pretty(rule.arg1().toString()) + " = " + pretty(rule.arg2().toString()));
+                        values.add(pretty(rule.arg1().toString()) + " = "
+                            + display(CalcRequest.Operation.SOLVE, rule.arg2().toString()));
                     } else {
-                        values.add(pretty(assignment.toString()));
+                        values.add(prettyResult(assignment.toString()));
                     }
                 }
                 message.append(Component.literal(String.join(",  ", values)).withStyle(ChatFormatting.GREEN));
             } else {
-                message.append(Component.literal(pretty(solution.toString())).withStyle(ChatFormatting.GREEN));
+                message.append(Component.literal(prettyResult(solution.toString())).withStyle(ChatFormatting.GREEN));
             }
         }
+    }
+
+    private static String display(CalcRequest.Operation operation, String source) {
+        return NumFormatConfig.format(operation, source).orElseGet(() -> prettyResult(source));
+    }
+
+    private static String prettyResult(String source) {
+        return pretty(DisplayConfig.arrangeTerms(source));
     }
 
     /** A display scanner preserves unary signs, fractions, parentheses and scientific exponents. */

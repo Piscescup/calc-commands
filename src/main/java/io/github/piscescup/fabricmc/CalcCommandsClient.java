@@ -5,9 +5,11 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import io.github.piscescup.fabricmc.commands.CalcCommands;
 
-import static io.github.piscescup.fabricmc.References.*;
+import static io.github.piscescup.fabricmc.References.MOD_LOGGER;
+import static io.github.piscescup.fabricmc.References.MOD_NAME;
+import static io.github.piscescup.fabricmc.References.MOD_VERSION;
 
-public class CalcCommandsClient implements ClientModInitializer {
+public final class CalcCommandsClient implements ClientModInitializer {
 	/**
 	 * Runs the mod initializer on the client environment.
 	 */
@@ -18,7 +20,7 @@ public class CalcCommandsClient implements ClientModInitializer {
 			MOD_NAME, MOD_VERSION
 		);
 		ClientCommandRegistrationCallback.EVENT.register(CalcCommands::register);
-		ClientLifecycleEvents.CLIENT_STARTED.register(client -> CalcCommands.warmUp());
+		ClientLifecycleEvents.CLIENT_STARTED.register(CalcCommands::warmUp);
 	}
 
 }

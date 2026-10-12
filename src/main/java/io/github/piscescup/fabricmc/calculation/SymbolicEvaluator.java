@@ -110,8 +110,8 @@ final class SymbolicEvaluator {
                     yield derivative;
                 }
                 case IntegrateRequest integral -> {
-                    IExpr from = calculate(build(integral.from(), answer, Map.of()));
-                    IExpr to = calculate(build(integral.to(), answer, Map.of()));
+                    IExpr from = calculate(build(integral.lowerBound(), answer, Map.of()));
+                    IExpr to = calculate(build(integral.upperBound(), answer, Map.of()));
                     if (!calculate(F.N(from)).isReal() || !calculate(F.N(to)).isReal()) {
                         throw CalcCommandsException.error("invalid_bounds");
                     }
