@@ -1,0 +1,76 @@
+package io.github.piscescup.fabricmc.datagen;
+
+import java.util.concurrent.CompletableFuture;
+
+import net.fabricmc.fabric.api.datagen.v1.FabricPackOutput;
+import net.fabricmc.fabric.api.datagen.v1.provider.FabricLanguageProvider;
+import net.minecraft.core.HolderLookup;
+
+public final class ZHCNLanguageProvider extends FabricLanguageProvider {
+	public ZHCNLanguageProvider(FabricPackOutput output, CompletableFuture<HolderLookup.Provider> registryLookup) {
+		super(output, "zh_cn", registryLookup);
+	}
+
+	@Override
+	public void generateTranslations(HolderLookup.Provider registryLookup, TranslationBuilder translationBuilder) {
+		translationBuilder.add("commands.calc.help.syntax", "/calc <表达式> | 运算符：+ - * / %% ^ | 常量：pi、e、ans（不区分大小写）| 角度使用弧度；支持 2^-3 和 2^(-3)。");
+		translationBuilder.add("commands.calc.help.functions", "函数：%s。ln(x) 为自然对数，lg(x) 为常用对数，log2(x) 以 2 为底，log(base, x) 可指定底数。n(x, digits) 求小数近似；ans 精确保留上一次成功结果。");
+		translationBuilder.add("commands.calc.error.expected_operand", "此处需要数字、常量、函数或左括号");
+		translationBuilder.add("commands.calc.error.expected_operator", "此处需要运算符；乘法需要显式输入 *");
+		translationBuilder.add("commands.calc.error.expected_open", "函数“%s”后需要左括号 (");
+		translationBuilder.add("commands.calc.error.expected_close", "缺少右括号 )");
+		translationBuilder.add("commands.calc.error.unexpected_close", "此处多出了右括号 )");
+		translationBuilder.add("commands.calc.error.unexpected_comma", "逗号只能用于分隔函数参数");
+		translationBuilder.add("commands.calc.error.unexpected_character", "不支持的字符“%s”");
+		translationBuilder.add("commands.calc.error.unknown_name", "未知的函数或常量“%s”");
+		translationBuilder.add("commands.calc.error.invalid_number", "无效或超出范围的数字“%s”");
+		translationBuilder.add("commands.calc.error.expected_exponent", "科学计数法的指数部分需要数字");
+		translationBuilder.add("commands.calc.error.parenthesize_exponent", "带正负号的指数需要加括号，例如 2^(-3)");
+		translationBuilder.add("commands.calc.error.argument_count", "函数“%s”收到 %s 个参数，需要 %s 至 %s 个");
+		translationBuilder.add("commands.calc.error.too_long", "表达式最多允许 %s 个字符");
+		translationBuilder.add("commands.calc.error.too_many_tokens", "表达式最多允许 %s 个词法单元");
+		translationBuilder.add("commands.calc.error.too_deep", "括号或函数最多嵌套 %s 层");
+		translationBuilder.add("commands.calc.error.too_many_arguments", "单个函数最多允许 %s 个参数");
+		translationBuilder.add("commands.calc.error.division_by_zero", "除数或取余的除数不能为零");
+		translationBuilder.add("commands.calc.error.function_domain", "函数“%s”的参数超出了实数定义域");
+		translationBuilder.add("commands.calc.error.undefined_result", "表达式没有有效的实数结果");
+		translationBuilder.add("commands.calc.error.overflow", "计算结果超出了支持的数值范围");
+		translationBuilder.add("commands.calc.error.evaluation_failed", "无法计算此表达式，请检查参数和括号");
+		translationBuilder.add("commands.calc.error.too_complex", "计算超出了支持的复杂度或输出长度限制");
+		translationBuilder.add("commands.calc.error.calculation_timeout", "计算超时，请简化表达式");
+		translationBuilder.add("commands.calc.error.calculation_busy", "计算器正在忙，请等待待处理的计算完成");
+		translationBuilder.add("commands.calc.error.invalid_precision", "有效数字位数必须是 1 至 %s 的整数");
+		translationBuilder.add("commands.calc.help.symbolic", "符号计算：/calc solve <方程> <变量> | expand <表达式> | factor <表达式> | diff <函数> <变量> | integrate <函数> <变量> <下限> <上限>");
+		translationBuilder.add("commands.calc.help.symbolic_variables", "多条方程用分号分隔，多个变量用逗号分隔（逗号两侧不加空格）。diff 的 x,y 表示依次求导，x,x 表示二阶导数。solve 求实数解。积分上下限可为表达式；带空格时需加括号。");
+		translationBuilder.add("commands.calc.error.symbolic_arguments", "缺少命令参数。用法：%s");
+		translationBuilder.add("commands.calc.error.invalid_variable", "无效变量“%s”；使用 1 至 32 位字母、数字或下划线，以字母开头，并避开函数和常量名称");
+		translationBuilder.add("commands.calc.error.duplicate_variable", "求解变量“%s”重复");
+		translationBuilder.add("commands.calc.error.single_variable", "定积分只能指定一个积分变量");
+		translationBuilder.add("commands.calc.error.expected_equation", "方程需写成 左式=右式 或 左式==右式；多条方程用分号分隔");
+		translationBuilder.add("commands.calc.error.expected_quote", "缺少结束的双引号");
+		translationBuilder.add("commands.calc.error.symbolic_limit", "方程、不同符号或求导变量最多允许 %s 个");
+		translationBuilder.add("commands.calc.error.invalid_bounds", "积分上下限必须是有限实数");
+		translationBuilder.add("commands.calc.error.symbolic_failed", "Symja 未能完成此符号计算，请尝试简化表达式");
+		translationBuilder.add("commands.calc.feedback.expression", "计算");
+		translationBuilder.add("commands.calc.feedback.solve", "方程求解");
+		translationBuilder.add("commands.calc.feedback.expand", "展开");
+		translationBuilder.add("commands.calc.feedback.factor", "因式分解");
+		translationBuilder.add("commands.calc.feedback.diff", "求导");
+		translationBuilder.add("commands.calc.feedback.integrate", "定积分");
+		translationBuilder.add("commands.calc.feedback.solution", "解 %s：");
+		translationBuilder.add("commands.calc.feedback.no_solutions", "无实数解");
+		translationBuilder.add("commands.calc.feedback.all_reals", "任意实数（变量不受约束）");
+		translationBuilder.add("commands.calc.feedback.variables_label", "变量：");
+		translationBuilder.add("commands.calc.feedback.equations_label", "方程：");
+		translationBuilder.add("commands.calc.feedback.function_label", "函数：");
+		translationBuilder.add("commands.calc.feedback.expression_label", "表达式：");
+		translationBuilder.add("commands.calc.feedback.from_label", "积分下限：");
+		translationBuilder.add("commands.calc.feedback.to_label", "积分上限：");
+		translationBuilder.add("commands.calc.feedback.derivative_order_label", "求导顺序：");
+		translationBuilder.add("commands.calc.feedback.solutions_label", "解：");
+		translationBuilder.add("commands.calc.feedback.result_label", "结果：");
+		translationBuilder.add("commands.calc.feedback.derivative_label", "导数：");
+		translationBuilder.add("commands.calc.feedback.integral_label", "积分值：");
+		translationBuilder.add("commands.calc.feedback.approximate_label", "近似值：");
+	}
+}
