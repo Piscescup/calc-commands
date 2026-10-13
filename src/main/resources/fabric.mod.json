@@ -3,11 +3,16 @@
 	"id": "calc-commands",
 	"version": "${version}",
 	"name": "Calc Commands",
-	"description": "Client-side calculator commands with expression validation and completion, powered by Symja.",
+	"description": "Client-side math commands for expressions, equations, calculus, and inventory quantities.",
 	"authors": [
 		"REN YuanTong"
 	],
-	"license": "CC0-1.0",
+	"license": "Apache-2.0",
+	"contact": {
+		"homepage": "https://github.com/Piscescup/calc-commands",
+		"sources": "https://github.com/Piscescup/calc-commands",
+		"issues": "https://github.com/Piscescup/calc-commands/issues"
+	},
 	"icon": "assets/calc-commands/icon.png",
 	"environment": "client",
 	"entrypoints": {

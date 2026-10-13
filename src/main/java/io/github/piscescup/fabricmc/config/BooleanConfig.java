@@ -2,6 +2,7 @@ package io.github.piscescup.fabricmc.config;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
+import java.util.List;
 
 public final class BooleanConfig extends AbstractConfig<Boolean> {
     public BooleanConfig(boolean defaultValue) {
@@ -10,9 +11,14 @@ public final class BooleanConfig extends AbstractConfig<Boolean> {
 
     @Override
     public Boolean parse(String value) {
-        if ("true".equals(value)) return true;
-        if ("false".equals(value)) return false;
-        throw new IllegalArgumentException("Expected true or false");
+        if ("true".equalsIgnoreCase(value) || "enable".equalsIgnoreCase(value)) return true;
+        if ("false".equalsIgnoreCase(value) || "disable".equalsIgnoreCase(value)) return false;
+        throw new IllegalArgumentException("Expected true/false or enable/disable");
+    }
+
+    @Override
+    public List<String> options() {
+        return List.of("enable", "disable");
     }
 
     @Override

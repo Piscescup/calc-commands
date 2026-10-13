@@ -1,26 +1,18 @@
 package io.github.piscescup.fabricmc.commands;
 
 import com.mojang.brigadier.Command;
-import com.mojang.brigadier.StringReader;
-import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
-import com.mojang.brigadier.suggestion.Suggestions;
-import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import io.github.piscescup.fabricmc.calculation.CalcRequest;
 import io.github.piscescup.fabricmc.config.NumFormatConfig;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-import io.github.piscescup.fabricmc.config.Option;
 import io.github.piscescup.fabricmc.config.Options;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.ChatFormatting;
@@ -34,13 +26,13 @@ import static io.github.piscescup.fabricmc.config.NumFormatConfig.STACK_KEY;
 import static io.github.piscescup.fabricmc.config.NumFormatConfig.TEMPLATE_KEY;
 
 /** Builds and executes the /calc numfmt configuration branch. */
-public final class NumberFormetCommands {
+public final class NumberFormatCommands {
     private static final SimpleCommandExceptionType INVALID_TEMPLATE = new SimpleCommandExceptionType(
         message("commands.calc.numfmt.error.invalid_template", ChatFormatting.RED));
     private static final SimpleCommandExceptionType SAVE_FAILED = new SimpleCommandExceptionType(
         message("commands.calc.numfmt.error.save_failed", ChatFormatting.RED));
 
-    private NumberFormetCommands() {}
+    private NumberFormatCommands() {}
 
     public static void register(LiteralArgumentBuilder<FabricClientCommandSource> calcRoot) {
         NumFormatConfig.initialize();
@@ -49,34 +41,38 @@ public final class NumberFormetCommands {
 
     static void build(LiteralArgumentBuilder<FabricClientCommandSource> calcRoot) {
         LiteralArgumentBuilder<FabricClientCommandSource> numfmt = literal("numfmt")
-            .executes(NumberFormetCommands::showSettings);
-        numfmt.then(literal("reset").executes(NumberFormetCommands::resetAll));
+            .executes(NumberFormatCommands::showSettings);
+        numfmt.then(literal("default").executes(NumberFormatCommands::resetAll));
+        numfmt.then(literal("reset").executes(NumberFormatCommands::resetAll));
         numfmt.then(literal("enable").executes(context -> setEnabled(context, true)));
         numfmt.then(literal("disable").executes(context -> setEnabled(context, false)));
 
         LiteralArgumentBuilder<FabricClientCommandSource> scope = literal(SCOPE_KEY)
-            .executes(NumberFormetCommands::showScope);
-        scope.then(literal("show").executes(NumberFormetCommands::showScope));
-        scope.then(literal("default").executes(NumberFormetCommands::resetScope));
+            .executes(NumberFormatCommands::showScope);
+        scope.then(literal("show").executes(NumberFormatCommands::showScope));
+        scope.then(literal("default").executes(NumberFormatCommands::resetScope));
         scope.then(scopeChange("add", true));
         scope.then(scopeChange("remove", false));
         numfmt.then(scope);
 
         LiteralArgumentBuilder<FabricClientCommandSource> format = literal(FORMAT_KEY)
-            .executes(NumberFormetCommands::showFormatMode);
-        format.then(literal("default").executes(NumberFormetCommands::resetFormatMode));
+            .executes(NumberFormatCommands::showFormatMode);
+        format.then(literal("default").executes(NumberFormatCommands::resetFormatMode));
         for (Options.FormatMode mode : Options.FormatMode.values()) {
             format.then(literal(mode.getValue()).executes(context -> setFormatMode(context, mode)));
         }
         numfmt.then(format);
 
         numfmt.then(literal(TEMPLATE_KEY)
-            .executes(NumberFormetCommands::showTemplate)
-            .then(literal("reset").executes(NumberFormetCommands::resetTemplate))
+            .executes(NumberFormatCommands::showTemplate)
+            .then(literal("default").executes(NumberFormatCommands::resetTemplate))
+            .then(literal("reset").executes(NumberFormatCommands::resetTemplate))
             .then(argument(TEMPLATE_KEY, StringArgumentType.string())
                 .suggests((context, builder) -> {
                         Arrays.stream(Options.TemplateOption.values())
-                            .map(Option::getValue)
+                            .map(preset -> StringArgumentType.escapeIfRequired(preset.template()))
+                            .filter(candidate -> candidate.toLowerCase(java.util.Locale.ROOT)
+                                .startsWith(builder.getRemainingLowerCase()))
                             .forEach(builder::suggest);
                         return builder.buildFuture();
                     })
@@ -90,13 +86,7 @@ public final class NumberFormetCommands {
 
     private static LiteralArgumentBuilder<FabricClientCommandSource> scopeChange(String command, boolean add) {
         LiteralArgumentBuilder<FabricClientCommandSource> branch = literal(command);
-        for (CalcRequest.Operation operation : List.of(
-                CalcRequest.Operation.EXPRESSION,
-                CalcRequest.Operation.INTEGRATE,
-                CalcRequest.Operation.DIFF,
-                CalcRequest.Operation.LIMIT,
-                CalcRequest.Operation.SOLVE)
-        ) {
+        for (CalcRequest.Operation operation : NumFormatConfig.allowedOperations()) {
             branch.then(literal(operation.getValue()).executes(context -> changeScope(context, operation, add)));
         }
         return branch;
@@ -127,22 +117,22 @@ public final class NumberFormetCommands {
     }
 
     private static int showSettings(CommandContext<FabricClientCommandSource> context) {
-        String scope = scopeText();
+        var settings = NumFormatConfig.snapshot();
         context.getSource().sendFeedback(message("commands.calc.numfmt.settings", ChatFormatting.AQUA,
-            NumFormatConfig.enabled(), scope, NumFormatConfig.formatMode().getValue(),
-            NumFormatConfig.template(), NumFormatConfig.stackSize()));
+            settings.enabled(), scopeText(), settings.mode().getValue(), settings.template(), settings.stackSize()));
         return Command.SINGLE_SUCCESS;
     }
 
     private static int showFormatMode(CommandContext<FabricClientCommandSource> context) {
         context.getSource().sendFeedback(message("commands.calc.numfmt.format", ChatFormatting.AQUA,
-            NumFormatConfig.formatMode().getValue()));
+            NumFormatConfig.snapshot().mode().getValue()));
         return Command.SINGLE_SUCCESS;
     }
 
     private static int showTemplate(CommandContext<FabricClientCommandSource> context) {
+        var settings = NumFormatConfig.snapshot();
         context.getSource().sendFeedback(message("commands.calc.numfmt.template", ChatFormatting.AQUA,
-            NumFormatConfig.template(), NumFormatConfig.stackSize()));
+            settings.template(), settings.stackSize()));
         return Command.SINGLE_SUCCESS;
     }
 
@@ -177,7 +167,7 @@ public final class NumberFormetCommands {
     }
 
     private static String scopeText() {
-        String scope = NumFormatConfig.scope().stream()
+        String scope = NumFormatConfig.snapshot().scope().stream()
             .map(CalcRequest.Operation::getValue).sorted().collect(Collectors.joining(", "));
         return scope.isEmpty() ? "-" : scope;
     }

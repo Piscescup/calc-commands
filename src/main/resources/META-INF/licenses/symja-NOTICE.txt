@@ -8,7 +8,7 @@ These modules are licensed under GNU LGPL version 3.
 See symja-LGPL-3.0.txt and the accompanying symja-GPL-3.0.txt.
 They are distributed as separate jars in META-INF/jars/.
 Loom adds Fabric metadata; the original class files are unchanged.
-The mod's own code is licensed separately under CC0-1.0.
+The mod's own code is licensed separately under Apache-2.0.
 
 Corresponding version 3.2.0 source archives:
 https://repo.maven.apache.org/maven2/org/matheclipse/matheclipse-core/3.2.0/matheclipse-core-3.2.0-sources.jar

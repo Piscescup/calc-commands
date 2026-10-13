@@ -1,8 +1,6 @@
 package io.github.piscescup.fabricmc.calculation;
 
 import io.github.piscescup.fabricmc.config.Option;
-import org.jetbrains.annotations.Nullable;
-import org.jspecify.annotations.NonNull;
 
 import java.util.Set;
 
@@ -30,13 +28,12 @@ public abstract sealed class CalcRequest
             this.arguments = arguments;
         }
 
-        @NonNull
         @Override
         public String getValue() {
             return command;
         }
 
-        String syntax() {
+        public String syntax() {
             return "/calc " + command + " " + arguments;
         }
     }

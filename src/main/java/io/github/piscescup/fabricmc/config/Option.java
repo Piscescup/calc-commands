@@ -1,22 +1,6 @@
 package io.github.piscescup.fabricmc.config;
 
-import net.minecraft.util.StringRepresentable;
-import org.jspecify.annotations.NonNull;
-
-import java.util.Locale;
-
-/**
- *
- * @author REN YuanTong
- * @since
- */
-public interface Option extends StringRepresentable {
-
+/** A stable string value, independent of Minecraft's serialization APIs. */
+public interface Option {
     String getValue();
-
-    @NonNull
-    @Override
-    default String getSerializedName() {
-        return getValue();
-    }
 }

@@ -148,8 +148,8 @@ public final class ExpressionValidator {
         for (String symbol : symbols) {
             if (symbol.startsWith(completionPrefix)) candidates.add(symbol);
         }
-        for (String function : functions.keySet()) {
-            if (function.startsWith(completionPrefix)) candidates.add(function + "(");
+        for (FunctionDefinition function : functions.values()) {
+            if (function.name().startsWith(completionPrefix)) candidates.add(function.insertion());
         }
         candidates.sort(String::compareTo);
         return new Completion(completionOffset, candidates);

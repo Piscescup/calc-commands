@@ -18,22 +18,6 @@ public interface Configurable<T> {
         return serialize(value());
     }
 
-    default String defaultValueString() {
-        return serialize(defaultValue());
-    }
-
-    default void setValueByString(String value) {
-        setValue(parse(value));
-    }
-
-    default void resetToDefault() {
-        setValue(defaultValue());
-    }
-
-    default void validateStringValue(String value) {
-        validate(parse(value));
-    }
-
     default List<String> options() {
         return List.of();
     }

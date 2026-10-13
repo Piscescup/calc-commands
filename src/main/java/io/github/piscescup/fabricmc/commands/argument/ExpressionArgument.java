@@ -11,6 +11,8 @@ import io.github.piscescup.fabricmc.calculation.CalculatorEngine;
 import io.github.piscescup.fabricmc.calculation.CalcCommandsException;
 import io.github.piscescup.fabricmc.calculation.ExpressionValidator;
 import io.github.piscescup.fabricmc.calculation.CalcRequest;
+import io.github.piscescup.fabricmc.calculation.FunctionDefinition;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 
 import java.util.Collection;
@@ -57,7 +59,12 @@ public final class ExpressionArgument implements ArgumentType<CalcRequest> {
         }
         ExpressionValidator.Completion completion = engine.complete(operation, builder.getRemaining());
         SuggestionsBuilder replacement = builder.createOffset(builder.getStart() + completion.offset());
-        for (String candidate : completion.candidates()) replacement.suggest(candidate);
+        for (String candidate : completion.candidates()) {
+            int open = candidate.indexOf('(');
+            FunctionDefinition function = open < 0 ? null : FunctionDefinition.find(candidate.substring(0, open));
+            if (function == null) replacement.suggest(candidate);
+            else replacement.suggest(candidate, functionTooltip(function));
+        }
         return replacement.buildFuture();
     }
 
@@ -77,5 +84,12 @@ public final class ExpressionArgument implements ArgumentType<CalcRequest> {
 
     public static Component message(CalcCommandsException error) {
         return Component.translatable("commands.calc.error." + error.key(), error.arguments());
+    }
+
+    public static Component functionTooltip(FunctionDefinition function) {
+        return Component.empty().append(Component.literal(function.syntax()).withStyle(ChatFormatting.AQUA))
+            .append("\n").append(Component.translatable("commands.calc.function." + function.name()).withStyle(ChatFormatting.GRAY))
+            .append("\n").append(Component.translatable("commands.calc.help.function_example", function.example())
+                .withStyle(ChatFormatting.GREEN));
     }
 }

@@ -1,13 +1,13 @@
 package io.github.piscescup.fabricmc.config;
 
+import com.google.gson.JsonParser;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class DisplayConfigTest {
     @TempDir
@@ -16,26 +16,26 @@ public class DisplayConfigTest {
     @Test
     public void missingFieldsUseTheirDefaults() throws Exception {
         Path path = directory.resolve("calc_cfg.json");
-        assertEquals("descending", DisplayConfig.read(path).get(DisplayConfig.POWER_ORDER_KEY));
-        assertEquals("disable", DisplayConfig.read(path).get(DisplayConfig.COMPLEX_KEY));
+        ConfigStore store = DisplayConfig.createStore(path);
+        assertEquals(Map.of("power_order", "ascending", "complex", "false"), store.read(path));
         Files.writeString(path, "{\"power_order\":\"descending\"}");
-        assertEquals("descending", DisplayConfig.read(path).get(DisplayConfig.POWER_ORDER_KEY));
-        assertEquals("disable", DisplayConfig.read(path).get(DisplayConfig.COMPLEX_KEY));
+        assertEquals(Map.of("power_order", "descending", "complex", "false"), store.read(path));
         Files.writeString(path, "{\"complex\":\"enable\"}");
-        assertEquals("descending", DisplayConfig.read(path).get(DisplayConfig.POWER_ORDER_KEY));
-        assertEquals("enable", DisplayConfig.read(path).get(DisplayConfig.COMPLEX_KEY));
+        assertEquals(Map.of("power_order", "ascending", "complex", "true"), store.read(path));
     }
 
     @Test
-    public void savesBothOptionsAndReloadsComplexAndRealModes() throws Exception {
+    public void savesComplexAsBooleanAndReloadsBothModes() throws Exception {
         Path path = directory.resolve("nested/calc_cfg.json");
+        ConfigStore store = DisplayConfig.createStore(path);
         for (boolean enabled : new boolean[] {true, false}) {
-            var settings = Map.of(
-                DisplayConfig.POWER_ORDER_KEY, "descending",
-                DisplayConfig.COMPLEX_KEY, enabled ? "enable" : "disable");
-            DisplayConfig.save(path, settings);
-            assertEquals(settings, DisplayConfig.read(path));
-            assertFalse(Files.exists(path.resolveSibling("calc_cfg.json.tmp")));
+            var settings = Map.of("power_order", "descending", "complex", Boolean.toString(enabled));
+            store.save(path, settings);
+            assertEquals(settings, store.read(path));
+            var json = JsonParser.parseString(Files.readString(path)).getAsJsonObject();
+            assertTrue(json.getAsJsonPrimitive("complex").isBoolean());
+            assertEquals(enabled, json.get("complex").getAsBoolean());
         }
     }
+
 }

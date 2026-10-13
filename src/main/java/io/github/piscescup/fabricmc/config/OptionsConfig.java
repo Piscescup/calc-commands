@@ -1,31 +1,22 @@
 package io.github.piscescup.fabricmc.config;
 
 import java.util.List;
-import java.util.Objects;
-import java.util.function.Function;
 
 /** A typed value selected from a fixed list of options. */
 public final class OptionsConfig<T extends Option> extends AbstractConfig<T> {
     private final List<T> options;
-    private final Function<String, T> parser;
 
     @SafeVarargs
-    public OptionsConfig(T defaultValue, Function<String, T> parser, T... options) {
-        this(defaultValue, List.of(options), parser);
-    }
-
-    public OptionsConfig(T defaultValue, List<T> options, Function<String, T> parser) {
+    public OptionsConfig(T defaultValue, T... options) {
         super(defaultValue);
-        this.options = List.copyOf(options);
-        this.parser = Objects.requireNonNull(parser, "parser");
+        this.options = List.of(options);
         validate(defaultValue);
     }
 
     @Override
     public T parse(String value) {
-        T parsed = parser.apply(value);
-        validate(parsed);
-        return parsed;
+        return options.stream().filter(option -> option.getValue().equalsIgnoreCase(value))
+            .findFirst().orElseThrow(() -> new IllegalArgumentException("Invalid option value: " + value));
     }
 
     @Override

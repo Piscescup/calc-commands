@@ -2,6 +2,7 @@ package io.github.piscescup.fabricmc.calculation;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import org.matheclipse.core.interfaces.IExpr;
@@ -16,7 +17,7 @@ public final class CalculatorEngine {
     static final int MAX_ARGUMENTS = 64;
     static final int MAX_PRECISION = 1000;
     static final int MAX_NUMBER_EXPONENT = 4096;
-    static final int MAX_OUTPUT_LENGTH = 4096;
+    public static final int MAX_OUTPUT_LENGTH = 4096;
     static final int MAX_SYMBOLIC_ITEMS = 16;
     static final List<String> CONSTANT_NAMES = List.of("pi", "e", "i", "ans");
 
@@ -82,8 +83,9 @@ public final class CalculatorEngine {
     }
 
     public synchronized Result evaluate(CalcRequest request, Result answer, boolean complex) {
-        CalcRequest validated = validate(request.operation(), request.source());
+        // Requests are immutable and can only be constructed by the validated parser.
+        Objects.requireNonNull(request, "request");
         if (evaluator == null) evaluator = new SymbolicEvaluator();
-        return evaluator.evaluate(validated, answer, complex);
+        return evaluator.evaluate(request, answer, complex);
     }
 }

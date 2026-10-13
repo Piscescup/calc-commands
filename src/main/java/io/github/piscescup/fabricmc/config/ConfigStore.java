@@ -3,7 +3,10 @@ package io.github.piscescup.fabricmc.config;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import io.github.piscescup.fabricmc.References;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -17,10 +20,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static io.github.piscescup.fabricmc.References.GSON;
-
 /** Validates a complete update, saves it, then publishes the new in-memory values. */
 public final class ConfigStore {
+    private static final Logger LOGGER = LogManager.getLogger("calc-commands");
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private final Path path;
     private final Map<String, Configurable<?>> configs = new LinkedHashMap<>();
     private boolean loaded;
@@ -42,19 +45,18 @@ public final class ConfigStore {
         return List.copyOf(configs.keySet());
     }
 
-    public synchronized Configurable<?> configOf(String key) {
+    private Configurable<?> configOf(String key) {
         Configurable<?> config = configs.get(key);
         if (config == null) throw new IllegalArgumentException("Unknown configuration key: " + key);
         return config;
     }
 
-    public synchronized String get(String key) {
-        return configOf(key).stringValue();
+    public synchronized List<String> optionsOf(String key) {
+        return configOf(key).options();
     }
 
-    public synchronized <T> T get(Configurable<T> config) {
-        keyOf(config);
-        return config.value();
+    public synchronized String get(String key) {
+        return configOf(key).stringValue();
     }
 
     public synchronized Map<String, String> snapshot() {
@@ -68,8 +70,10 @@ public final class ConfigStore {
     }
 
     public synchronized <T> void set(Configurable<T> config, T value) throws IOException {
-        config.validate(value);
-        set(keyOf(config), config.serialize(value));
+        String key = keyOf(config);
+        JsonObject replacement = currentJson();
+        replacement.add(key, config.toJson(value));
+        replace(replacement);
     }
 
     /** Multiple fields are saved together; failed validation or I/O publishes none of them. */
@@ -94,7 +98,7 @@ public final class ConfigStore {
         try {
             values = readJson(path);
         } catch (RuntimeException | IOException error) {
-            References.MOD_LOGGER.warn("Could not load {}; using defaults", path, error);
+            LOGGER.warn("Could not load {}; using defaults", path, error);
             values = defaultsJson();
         }
         apply(values);
@@ -106,7 +110,7 @@ public final class ConfigStore {
         try {
             write(path, currentJson());
         } catch (IOException error) {
-            References.MOD_LOGGER.warn("Could not create configuration at {}", path, error);
+            LOGGER.warn("Could not create configuration at {}", path, error);
         }
     }
 
@@ -148,7 +152,12 @@ public final class ConfigStore {
         if (!Files.exists(source)) return values;
         JsonObject json = JsonParser.parseString(Files.readString(source, StandardCharsets.UTF_8)).getAsJsonObject();
         configs.forEach((key, config) -> {
-            if (json.has(key)) values.add(key, canonicalJson(config, json.get(key)));
+            if (!json.has(key)) return;
+            try {
+                values.add(key, canonicalJson(config, json.get(key)));
+            } catch (RuntimeException error) {
+                LOGGER.warn("Invalid configuration field {} in {}; using its default", key, source, error);
+            }
         });
         return values;
     }
@@ -187,13 +196,18 @@ public final class ConfigStore {
     }
 
     private static void write(Path target, JsonObject json) throws IOException {
-        Files.createDirectories(target.toAbsolutePath().getParent());
-        Path temporary = target.resolveSibling(target.getFileName() + ".tmp");
-        Files.writeString(temporary, GSON.toJson(json) + System.lineSeparator(), StandardCharsets.UTF_8);
+        Path absolute = target.toAbsolutePath();
+        Files.createDirectories(absolute.getParent());
+        Path temporary = Files.createTempFile(absolute.getParent(), absolute.getFileName() + ".", ".tmp");
         try {
-            Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException ignored) {
-            Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+            Files.writeString(temporary, GSON.toJson(json) + System.lineSeparator(), StandardCharsets.UTF_8);
+            try {
+                Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporary);
         }
     }
 }

@@ -1,6 +1,11 @@
 package io.github.piscescup.fabricmc.commands;
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.StringReader;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import io.github.piscescup.fabricmc.config.TemplateConfig;
+import io.github.piscescup.fabricmc.config.Options;
 import com.mojang.brigadier.tree.CommandNode;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import org.junit.jupiter.api.Test;
@@ -11,15 +16,17 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 public class ConfigurationCommandTreeTest {
     @Test
     public void numFmtTreeContainsEveryActionDefaultAndQueryPath() {
         LiteralArgumentBuilder<FabricClientCommandSource> root = LiteralArgumentBuilder.literal("calc");
-        NumberFormetCommands.build(root);
+        NumberFormatCommands.build(root);
         CommandNode<FabricClientCommandSource> numfmt = required(root.build(), "numfmt");
 
-        assertChildren(numfmt, "default", "enable", "disable", "scope", "format", "template");
+        assertChildren(numfmt, "reset", "default", "enable", "disable", "scope", "format", "template");
         assertChildren(required(numfmt, "scope"), "show", "default", "add", "remove");
         assertChildren(required(required(numfmt, "scope"), "add"),
             "expression", "integrate", "diff", "limit", "solve");
@@ -28,7 +35,7 @@ public class ConfigurationCommandTreeTest {
         assertChildren(required(numfmt, "format"), "default", "integer", "double", "all");
 
         CommandNode<FabricClientCommandSource> template = required(numfmt, "template");
-        assertChildren(template, "default", "template");
+        assertChildren(template, "reset", "default", "template");
         CommandNode<FabricClientCommandSource> templateArgument = required(template, "template");
         assertChildren(templateArgument, "--stack");
         assertChildren(required(templateArgument, "--stack"), "stack");
@@ -42,12 +49,15 @@ public class ConfigurationCommandTreeTest {
     @Test
     public void generalConfigTreeContainsQuerySetAndDefaultPaths() {
         LiteralArgumentBuilder<FabricClientCommandSource> root = LiteralArgumentBuilder.literal("calc");
-        ConfigCommands.build(root);
+        ConfigCommands.build(root, java.util.Map.of(
+            "power_order", java.util.List.of("ascending", "descending"),
+            "complex", java.util.List.of("enable", "disable")));
         CommandNode<FabricClientCommandSource> config = required(root.build(), "config");
 
-        assertChildren(config, "reset", "power_order", "complex");
-        CommandNode<FabricClientCommandSource> powerOrder = required(config, "power_order");
+        assertChildren(config, "default", "reset", "power-order", "power_order", "complex");
+        CommandNode<FabricClientCommandSource> powerOrder = required(config, "power-order");
         assertChildren(powerOrder, "default", "ascending", "descending");
+        assertSame(powerOrder, required(config, "power_order").getRedirect());
         assertNotNull(config.getCommand());
         assertNotNull(powerOrder.getCommand());
         CommandNode<FabricClientCommandSource> complex = required(config, "complex");
@@ -55,6 +65,33 @@ public class ConfigurationCommandTreeTest {
         assertNotNull(complex.getCommand());
         for (String value : new String[] {"enable", "disable", "default"}) {
             assertNotNull(required(complex, value).getCommand());
+        }
+        var dispatcher = new CommandDispatcher<FabricClientCommandSource>();
+        dispatcher.register(root);
+        for (String input : new String[] {"calc config power-order descending", "calc config power_order ascending",
+                "calc config default", "calc config reset", "calc config complex enable"}) {
+            var parsed = dispatcher.parse(input, null);
+            assertTrue(parsed.getExceptions().isEmpty(), input);
+            assertEquals(parsed.getReader().getTotalLength(), parsed.getReader().getCursor(), input);
+        }
+    }
+
+    @Test
+    public void templateSuggestionsSurviveBrigadierQuotingAndValidation() throws Exception {
+        var root = LiteralArgumentBuilder.<FabricClientCommandSource>literal("calc");
+        NumberFormatCommands.build(root);
+        var dispatcher = new CommandDispatcher<FabricClientCommandSource>();
+        dispatcher.register(root);
+        String input = "calc numfmt template ";
+        var suggestions = dispatcher.getCompletionSuggestions(dispatcher.parse(input, null)).get().getList();
+        TemplateConfig template = new TemplateConfig();
+        for (Options.TemplateOption preset : Options.TemplateOption.values()) {
+            String quoted = StringArgumentType.escapeIfRequired(preset.template());
+            assertTrue(suggestions.stream().anyMatch(suggestion -> suggestion.getText().equals(quoted)));
+            assertEquals(preset.template(), template.parse(StringArgumentType.string().parse(new StringReader(quoted))));
+            var parsed = dispatcher.parse(input + quoted + " --stack 16", null);
+            assertTrue(parsed.getExceptions().isEmpty());
+            assertEquals(parsed.getReader().getTotalLength(), parsed.getReader().getCursor());
         }
     }
 

@@ -6,13 +6,14 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import io.github.piscescup.fabricmc.config.DisplayConfig;
-import io.github.piscescup.fabricmc.config.Configurable;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
 
@@ -30,20 +31,29 @@ public final class ConfigCommands {
 
 
     static void build(LiteralArgumentBuilder<FabricClientCommandSource> calcRoot) {
+        Map<String, List<String>> settings = new LinkedHashMap<>();
+        for (String key : DisplayConfig.keys()) settings.put(key, DisplayConfig.optionsOf(key));
+        build(calcRoot, settings);
+    }
+
+    /** Command-tree construction needs metadata only, without accessing runtime files. */
+    static void build(LiteralArgumentBuilder<FabricClientCommandSource> calcRoot, Map<String, List<String>> settings) {
         LiteralArgumentBuilder<FabricClientCommandSource> config = literal("config")
             .executes(ConfigCommands::showSettings)
+            .then(literal("default").executes(ConfigCommands::reset))
             .then(literal("reset")
                 .executes(ConfigCommands::reset)
             );
 
-        for (String key : DisplayConfig.keys()) {
-            LiteralArgumentBuilder<FabricClientCommandSource> setting = literal(key)
+        for (String key : settings.keySet()) {
+            String command = key.replace('_', '-');
+            LiteralArgumentBuilder<FabricClientCommandSource> setting = literal(command)
                 .executes(
                     context -> show(context, key)
                 )
                 .then(literal("default").executes(context -> update(context, key, "default")));
 
-            for (String value : DisplayConfig.optionsOf(key)) {
+            for (String value : settings.get(key)) {
                 setting.then(
                     literal(value)
                         .executes(context ->
@@ -51,14 +61,17 @@ public final class ConfigCommands {
                         )
                 );
             }
-            config.then(setting);
+            var node = setting.build();
+            config.then(node);
+            if (!command.equals(key)) {
+                config.then(literal(key).executes(context -> show(context, key)).redirect(node));
+            }
         }
         calcRoot.then(config);
     }
 
     private static int update(CommandContext<FabricClientCommandSource> context, String key, String value)
             throws CommandSyntaxException {
-        Configurable<?> setting = DisplayConfig.configOf(key);
         try {
             if (value.equals("default")) DisplayConfig.reset(key);
             else DisplayConfig.set(key, value);
@@ -66,7 +79,7 @@ public final class ConfigCommands {
             throw SAVE_FAILED.create();
         }
         context.getSource().sendFeedback(message(
-            "commands.calc.config." + key + "_updated", ChatFormatting.GREEN, setting.stringValue()));
+            "commands.calc.config." + key + "_updated", ChatFormatting.GREEN, DisplayConfig.get(key)));
         return Command.SINGLE_SUCCESS;
     }
 

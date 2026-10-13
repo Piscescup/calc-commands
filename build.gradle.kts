@@ -85,6 +85,14 @@ java {
 	targetCompatibility = JavaVersion.VERSION_25
 }
 
+val modJarBaseName = "${project.name}-ver"
+val modJarVersion = "${project.version}-fabric-${providers.gradleProperty("fabric_api_version").get()}-mc"
+
+tasks.withType<Jar>().configureEach {
+	archiveBaseName.set(modJarBaseName)
+	archiveVersion.set(modJarVersion)
+}
+
 tasks.jar {
 	val projectName = project.name
 	inputs.property("projectName", projectName)
@@ -92,6 +100,7 @@ tasks.jar {
 	from("LICENSE") {
 		rename { "${it}_$projectName" }
 	}
+	from("NOTICE")
 }
 
 // configure the maven publication

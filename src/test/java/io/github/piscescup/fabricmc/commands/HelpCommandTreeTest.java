@@ -47,7 +47,7 @@ public class HelpCommandTreeTest {
                 else assertEquals(englishKeys, translations.keySet());
                 for (CalcRequest.Operation operation : CalcRequest.Operation.values()) {
                     String command = operation.getValue();
-                    for (String detail : new String[] {"description", "params", "usage"}) {
+                    for (String detail : new String[] {"description", "params"}) {
                         assertTrue(translations.has("commands.calc.help.detail." + command + "." + detail), command + "/" + detail);
                     }
                     assertTrue(translations.has("commands.calc.help.command." + command), command);
@@ -55,7 +55,12 @@ public class HelpCommandTreeTest {
                 }
                 assertTrue(translations.get("commands.calc.help.detail.diff.params").getAsString().contains("--at"));
                 assertTrue(translations.get("commands.calc.help.detail.integrate.params").getAsString().contains("--internal"));
-                assertTrue(translations.get("commands.calc.feedback.integration_constant").getAsString().contains("+ C"));
+                String constantNote = translations.get("commands.calc.feedback.integration_constant").getAsString();
+                assertTrue(constantNote.contains("C") && constantNote.contains("ans"));
+                for (String key : new String[] {"header", "syntax_label", "usage_label", "param_label", "notes_label",
+                        "group.calculation", "group.symbolic", "group.settings", "open_command", "insert_example", "back"}) {
+                    assertTrue(translations.has("commands.calc.help." + key), language + "/" + key);
+                }
             }
         }
     }

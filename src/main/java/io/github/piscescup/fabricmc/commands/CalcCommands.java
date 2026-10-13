@@ -13,13 +13,11 @@ import io.github.piscescup.fabricmc.calculation.CalculatorEngine;
 import io.github.piscescup.fabricmc.calculation.CalcCommandsException;
 import io.github.piscescup.fabricmc.calculation.CalcRequest;
 import io.github.piscescup.fabricmc.config.DisplayConfig;
-import io.github.piscescup.fabricmc.config.Options;
 
 import java.util.function.Supplier;
 
 import io.github.piscescup.fabricmc.commands.argument.ExpressionArgument;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 
 import java.util.concurrent.ArrayBlockingQueue;
@@ -29,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.argument;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
@@ -79,7 +76,7 @@ public final class CalcCommands {
                 .then(argument("input", new ExpressionArgument(ENGINE, operation)).executes(CalcCommands::execute)));
         }
         ConfigCommands.register(root);
-        NumberFormetCommands.register(root);
+        NumberFormatCommands.register(root);
 
         LiteralCommandNode<FabricClientCommandSource> registerNode = dispatcher.register(root);
         dispatcher.register(
@@ -91,7 +88,7 @@ public final class CalcCommands {
 
     private static int execute(CommandContext<FabricClientCommandSource> context) throws CommandSyntaxException {
         CalcRequest request = context.getArgument("input", CalcRequest.class);
-        boolean complex = Options.AbleOption.ENABLE.getValue().equals(DisplayConfig.get(DisplayConfig.COMPLEX_KEY));
+        boolean complex = DisplayConfig.complexEnabled();
         return submit(
             context, () -> ENGINE.evaluate(request, answer, complex),
             result -> CalculationFeedback.format(request, result)
@@ -110,8 +107,8 @@ public final class CalcCommands {
             CALCULATIONS.execute(() -> {
                 try {
                     CalculatorEngine.Result result = calculation.get();
-                    answer = result;
                     Component message = feedback.apply(result);
+                    answer = result;
                     Minecraft.getInstance()
                         .execute(() -> source.sendFeedback(message));
                 } catch (CalcCommandsException error) {
@@ -134,15 +131,7 @@ public final class CalcCommands {
     }
 
     private static int help(CommandContext<FabricClientCommandSource> context) {
-        context.getSource()
-            .sendFeedback(helpMessage("commands.calc.help.header"));
-        for (CalcRequest.Operation operation : CalcRequest.Operation.values()) {
-            sendCommandHelp(context, operation.getValue());
-        }
-        sendCommandHelp(context, "numfmt");
-        sendCommandHelp(context, "config");
-        context.getSource()
-            .sendFeedback(helpMessage("commands.calc.help.footer"));
+        context.getSource().sendFeedback(HelpFeedback.overview());
         return Command.SINGLE_SUCCESS;
     }
 
@@ -158,64 +147,7 @@ public final class CalcCommands {
     }
 
     private static int detailedHelp(CommandContext<FabricClientCommandSource> context, String command) {
-        MutableComponent message = Component.empty()
-            .append(Component.literal("[Calc Commands]")
-                .withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD))
-            .append(Component.literal(": /calc help " + command)
-                .withStyle(ChatFormatting.WHITE));
-        helpDetail(message, "description_label", "detail." + command + ".description");
-        message.append("\n- ")
-            .append(Component.translatable("commands.calc.help.param_label")
-                .withStyle(ChatFormatting.GRAY))
-            .append("\n       ")
-            .append(Component.translatable("commands.calc.help.detail." + command + ".params"));
-        helpDetail(message, "usage_label", "detail." + command + ".usage");
-        switch (command) {
-            case "expression" -> {
-                helpBullet(message, "commands.calc.help.functions", String.join(", ", ENGINE.functionNames()));
-                helpBullet(message, "commands.calc.help.numeric_functions");
-            }
-            case "solve", "diff", "integrate", "limit" -> helpBullet(
-                message, "commands.calc.help.symbolic_variables");
-            case "numfmt" -> {
-                helpBullet(message, "commands.calc.help.numfmt.scope");
-                helpBullet(message, "commands.calc.help.numfmt.format");
-                helpBullet(message, "commands.calc.help.numfmt.template");
-            }
-            case "config" -> {
-                helpBullet(message, "commands.calc.help.config.power_order");
-                helpBullet(message, "commands.calc.help.config.complex");
-            }
-            default -> {
-            }
-        }
-        context.getSource()
-            .sendFeedback(message);
+        context.getSource().sendFeedback(HelpFeedback.detail(command, ENGINE.functionNames()));
         return Command.SINGLE_SUCCESS;
-    }
-
-    private static void helpDetail(MutableComponent message, String label, String value) {
-        message.append("\n- ")
-            .append(Component.translatable("commands.calc.help." + label)
-                .withStyle(ChatFormatting.GRAY))
-            .append(Component.translatable("commands.calc.help." + value));
-    }
-
-    private static void helpBullet(MutableComponent message, String key, Object... arguments) {
-        message.append("\n- ")
-            .append(Component.translatable(key, arguments));
-    }
-
-    private static void sendCommandHelp(CommandContext<FabricClientCommandSource> context, String command) {
-        context.getSource()
-            .sendFeedback(helpMessage("commands.calc.help.command." + command));
-    }
-
-    private static Component helpMessage(String key, Object... arguments) {
-        return Component.empty()
-            .append(Component.literal("[Calc Commands]")
-                .withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD))
-            .append(" ")
-            .append(Component.translatable(key, arguments));
     }
 }
