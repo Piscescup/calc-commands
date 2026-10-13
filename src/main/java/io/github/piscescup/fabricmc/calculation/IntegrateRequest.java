@@ -3,7 +3,7 @@ package io.github.piscescup.fabricmc.calculation;
 import java.util.Set;
 
 /**
- * Only definite integration stores a variable and lower/upper bounds.
+ * Indefinite integration has no bounds; definite integration stores both bounds.
  */
 public final class IntegrateRequest extends CalcRequest {
     private final String variable;
@@ -24,12 +24,16 @@ public final class IntegrateRequest extends CalcRequest {
         return variable;
     }
 
+    public boolean definite() {
+        return lowerBound != null;
+    }
+
     public String lowerBoundSource() {
-        return lowerBound.text();
+        return definite() ? lowerBound.text() : "";
     }
 
     public String upperBoundSource() {
-        return upperBound.text();
+        return definite() ? upperBound.text() : "";
     }
 
     Part lowerBound() {

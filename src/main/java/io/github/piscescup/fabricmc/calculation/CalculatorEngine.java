@@ -18,6 +18,7 @@ public final class CalculatorEngine {
     static final int MAX_NUMBER_EXPONENT = 4096;
     static final int MAX_OUTPUT_LENGTH = 4096;
     static final int MAX_SYMBOLIC_ITEMS = 16;
+    static final List<String> CONSTANT_NAMES = List.of("pi", "e", "i", "ans");
 
     /**
      * Keep the symbolic value for ans, separately from display text.
@@ -42,8 +43,7 @@ public final class CalculatorEngine {
     }
 
     boolean reservedName(String name) {
-        return functions.containsKey(name) || Set.of("pi", "e", "ans")
-            .contains(name);
+        return functions.containsKey(name) || CONSTANT_NAMES.contains(name);
     }
 
     public CalcRequest validate(CalcRequest.Operation operation, String source) {
@@ -54,6 +54,8 @@ public final class CalculatorEngine {
         Set<String> symbols = operation == CalcRequest.Operation.EXPRESSION
             ? Set.of() : Set.of("x", "y", "z", "t");
         try {
+            ExpressionValidator.Completion option = SymbolicRequestParser.complete(operation, source, this);
+            if (option != null) return option;
             return new ExpressionValidator(source, functions, symbols).complete();
         } catch (CalcCommandsException ignored) {
             return new ExpressionValidator.Completion(source.length(), List.of());
@@ -75,9 +77,13 @@ public final class CalculatorEngine {
         evaluator.warmUp();
     }
 
-    public synchronized Result evaluate(CalcRequest request, Result answer) {
+    public Result evaluate(CalcRequest request, Result answer) {
+        return evaluate(request, answer, false);
+    }
+
+    public synchronized Result evaluate(CalcRequest request, Result answer, boolean complex) {
         CalcRequest validated = validate(request.operation(), request.source());
         if (evaluator == null) evaluator = new SymbolicEvaluator();
-        return evaluator.evaluate(validated, answer);
+        return evaluator.evaluate(validated, answer, complex);
     }
 }

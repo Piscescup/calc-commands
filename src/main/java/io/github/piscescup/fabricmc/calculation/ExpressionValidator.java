@@ -91,10 +91,10 @@ public final class ExpressionValidator {
                         FunctionDefinition function = functions.get(token.text());
                         if (function != null) {
                             pendingFunction = function;
-                        } else if ((List.of("pi", "e", "ans")
+                        } else if ((CalculatorEngine.CONSTANT_NAMES
                             .contains(token.text()) || symbols.contains(token.text()))) {
                             expectOperand = false;
-                            completionOffset = -1;
+                            if (!token.text().equals("i")) completionOffset = -1;
                         } else {
                             throw CalcCommandsException.at("unknown_name", token.start(), token.text());
                         }
@@ -142,8 +142,8 @@ public final class ExpressionValidator {
         }
         if (completionOffset < 0) return new Completion(source.length(), List.of());
         List<String> candidates = new ArrayList<>();
-        for (String constant : List.of("pi", "e", "ans")) {
-            if (constant.startsWith(completionPrefix)) candidates.add(constant);
+        for (String constant : CalculatorEngine.CONSTANT_NAMES) {
+            if (constant.startsWith(completionPrefix)) candidates.add(constant.equals("i") ? "I" : constant);
         }
         for (String symbol : symbols) {
             if (symbol.startsWith(completionPrefix)) candidates.add(symbol);

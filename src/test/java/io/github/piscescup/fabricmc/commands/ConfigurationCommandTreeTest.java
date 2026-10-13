@@ -19,12 +19,12 @@ public class ConfigurationCommandTreeTest {
         NumberFormetCommands.build(root);
         CommandNode<FabricClientCommandSource> numfmt = required(root.build(), "numfmt");
 
-        assertChildren(numfmt, "default", "able", "enable", "disable", "scope", "format", "template");
+        assertChildren(numfmt, "default", "enable", "disable", "scope", "format", "template");
         assertChildren(required(numfmt, "scope"), "show", "default", "add", "remove");
         assertChildren(required(required(numfmt, "scope"), "add"),
-            "expression", "factor", "integrate", "solve");
+            "expression", "integrate", "diff", "limit", "solve");
         assertChildren(required(required(numfmt, "scope"), "remove"),
-            "expression", "factor", "integrate", "solve");
+            "expression", "integrate", "diff", "limit", "solve");
         assertChildren(required(numfmt, "format"), "default", "integer", "double", "all");
 
         CommandNode<FabricClientCommandSource> template = required(numfmt, "template");
@@ -45,11 +45,17 @@ public class ConfigurationCommandTreeTest {
         ConfigCommands.build(root);
         CommandNode<FabricClientCommandSource> config = required(root.build(), "config");
 
-        assertChildren(config, "default", "power-order");
-        CommandNode<FabricClientCommandSource> powerOrder = required(config, "power-order");
+        assertChildren(config, "reset", "power_order", "complex");
+        CommandNode<FabricClientCommandSource> powerOrder = required(config, "power_order");
         assertChildren(powerOrder, "default", "ascending", "descending");
         assertNotNull(config.getCommand());
         assertNotNull(powerOrder.getCommand());
+        CommandNode<FabricClientCommandSource> complex = required(config, "complex");
+        assertChildren(complex, "enable", "disable", "default");
+        assertNotNull(complex.getCommand());
+        for (String value : new String[] {"enable", "disable", "default"}) {
+            assertNotNull(required(complex, value).getCommand());
+        }
     }
 
     private static <S> CommandNode<S> required(CommandNode<S> parent, String name) {

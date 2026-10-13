@@ -23,9 +23,30 @@ final class SymbolicRequestParser {
             return new ExpressionRequest(operation, source, new Part(source, 0), Set.of());
         }
         List<Part> words = words(source);
+        boolean atPoint = operation == Operation.DIFF && words.size() >= 2
+            && words.get(words.size() - 2).text().equalsIgnoreCase("--at");
+        boolean interval = operation == Operation.INTEGRATE && words.size() >= 3
+            && words.get(words.size() - 3).text().equalsIgnoreCase("--internal");
+        for (Part word : words) {
+            boolean flag = operation == Operation.DIFF && word.text().equalsIgnoreCase("--at")
+                || operation == Operation.INTEGRATE && word.text().equalsIgnoreCase("--internal");
+            if (flag && !(atPoint && word == words.get(words.size() - 2)
+                    || interval && word == words.get(words.size() - 3))) {
+                throw CalcCommandsException.incomplete("symbolic_arguments", word.offset(), operation.syntax());
+            }
+        }
+        LimitRequest.Direction direction = LimitRequest.Direction.BOTH;
+        boolean explicitDirection = false;
+        if (operation == Operation.LIMIT && !words.isEmpty()) {
+            String last = words.getLast().text().toLowerCase(Locale.ROOT);
+            explicitDirection = Set.of("both", "left", "right").contains(last);
+            if (explicitDirection) direction = LimitRequest.Direction.valueOf(last.toUpperCase(Locale.ROOT));
+        }
         int suffix = switch (operation) {
-            case SOLVE, DIFF -> 1;
-            case INTEGRATE -> 3;
+            case SOLVE -> 1;
+            case DIFF -> atPoint ? 3 : 1;
+            case INTEGRATE -> interval ? 4 : integrationSuffix(words, engine);
+            case LIMIT -> explicitDirection ? 3 : 2;
             default -> 0;
         };
         if (words.size() <= suffix) {
@@ -52,7 +73,7 @@ final class SymbolicRequestParser {
                 variables.add(name);
                 offset += item.length() + 1;
             }
-            if (operation == Operation.INTEGRATE && variables.size() != 1) {
+            if ((operation == Operation.INTEGRATE || operation == Operation.LIMIT) && variables.size() != 1) {
                 throw CalcCommandsException.at("single_variable", names.offset());
             }
         }
@@ -78,9 +99,14 @@ final class SymbolicRequestParser {
                 start = i + 1;
             }
         }
-        List<Part> bounds = operation == Operation.INTEGRATE
+        List<Part> bounds = operation == Operation.INTEGRATE && suffix >= 3
             ? List.of(words.get(words.size() - 2), words.getLast()) : List.of();
+        List<DiffRequest.Assignment> assignments = atPoint ? assignments(words.getLast(), engine) : List.of();
+        Part limitPoint = operation == Operation.LIMIT
+            ? words.get(words.size() - suffix + 1) : null;
         Set<String> symbols = new LinkedHashSet<>(variables);
+        assignments.forEach(assignment -> symbols.add(assignment.variable()));
+        if (symbols.size() > CalculatorEngine.MAX_SYMBOLIC_ITEMS) throw tooMany(source.length());
         List<Part> expressions = new ArrayList<>();
         if (operation == Operation.SOLVE) {
             for (Equation equation : equations) {
@@ -111,7 +137,10 @@ final class SymbolicRequestParser {
                 throw CalcCommandsException.shifted(error, input.offset());
             }
         }
-        for (Part bound : bounds) {
+        List<Part> numericInputs = new ArrayList<>(bounds);
+        assignments.forEach(assignment -> numericInputs.add(assignment.value()));
+        if (limitPoint != null && !infinity(limitPoint.text())) numericInputs.add(limitPoint);
+        for (Part bound : numericInputs) {
             try {
                 ExpressionLexer lexer = new ExpressionLexer(bound.text());
                 for (var token = lexer.next(); token.kind() != ExpressionLexer.Kind.END; token = lexer.next()) {
@@ -119,19 +148,161 @@ final class SymbolicRequestParser {
                         throw CalcCommandsException.at("too_many_tokens", token.start(), CalculatorEngine.MAX_TOKENS);
                     }
                 }
-                // Bounds use the numeric calculator grammar; free symbols are not accepted here.
+                // Bounds and evaluation points use numeric syntax, without free symbols.
                 engine.validate(bound.text());
             } catch (CalcCommandsException error) {
                 throw CalcCommandsException.shifted(error, bound.offset());
             }
         }
         return switch (operation) {
-            case EXPRESSION, EXPAND, FACTOR -> new ExpressionRequest(operation, source, expression, symbols);
+            case EXPRESSION, EXPAND, FACTOR, SIMPLIFY -> new ExpressionRequest(operation, source, expression, symbols);
             case SOLVE -> new SolveRequest(source, expression, symbols, variables, equations);
-            case DIFF -> new DiffRequest(source, expression, symbols, variables);
+            case DIFF -> new DiffRequest(source, expression, symbols, variables, assignments);
             case INTEGRATE -> new IntegrateRequest(source, expression, symbols,
-                variables.getFirst(), bounds.getFirst(), bounds.getLast());
+                variables.getFirst(), bounds.isEmpty() ? null : bounds.getFirst(),
+                bounds.isEmpty() ? null : bounds.getLast());
+            case LIMIT -> new LimitRequest(source, expression, symbols, variables.getFirst(), limitPoint, direction);
         };
+    }
+
+    static boolean infinity(String text) {
+        return text.toLowerCase(Locale.ROOT).matches("[+-]?(inf|infinity)");
+    }
+
+    /** Option suggestions use validation only, so they never initialize Symja or change ans. */
+    static ExpressionValidator.Completion complete(Operation operation, String source, CalculatorEngine engine) {
+        if (operation != Operation.DIFF && operation != Operation.INTEGRATE && operation != Operation.LIMIT) return null;
+        List<Part> words = words(source, false);
+        if (words.isEmpty()) return null;
+        boolean trailingSpace = Character.isWhitespace(source.charAt(source.length() - 1));
+        if (operation == Operation.LIMIT) {
+            int offset = trailingSpace ? source.length() : words.getLast().offset();
+            String prefix = source.substring(offset).toLowerCase(Locale.ROOT);
+            try {
+                parse(Operation.LIMIT, source.substring(0, offset), engine);
+                return choices(offset, prefix, List.of("both", "left", "right"));
+            } catch (CalcCommandsException ignored) {
+                // Otherwise try completing a numeric approach point after function and variable.
+            }
+            try {
+                parse(Operation.DIFF, source.substring(0, offset), engine);
+            } catch (CalcCommandsException ignored) {
+                return null;
+            }
+            if (prefix.startsWith("-") || prefix.startsWith("+")) {
+                ExpressionValidator.Completion infinity = choices(offset, prefix, List.of("-inf", "+inf"));
+                if (!infinity.candidates().isEmpty()) return infinity;
+            }
+            ExpressionValidator.Completion numeric = numericCompletion(source, offset);
+            List<String> candidates = new ArrayList<>(numeric.candidates());
+            for (String constant : List.of("inf", "-inf")) {
+                if (constant.startsWith(prefix)) candidates.add(constant);
+            }
+            return new ExpressionValidator.Completion(numeric.offset(), candidates);
+        }
+        String flag = operation == Operation.DIFF ? "--at" : "--internal";
+        for (int index = 0; index < words.size(); index++) {
+            Part word = words.get(index);
+            if (!word.text().equalsIgnoreCase(flag)) continue;
+            CalcRequest core = parse(operation, source.substring(0, word.offset()), engine);
+            int start = word.offset() + word.text().length();
+            if (start == source.length()) return choices(word.offset(), flag, List.of(flag + " "));
+            while (start < source.length() && Character.isWhitespace(source.charAt(start))) start++;
+            if (operation == Operation.DIFF) {
+                int depth = 0;
+                for (int i = start; i < source.length(); i++) {
+                    char c = source.charAt(i);
+                    if (c == '(') depth++;
+                    if (c == ')') depth--;
+                    if (c == ',' && depth == 0) start = i + 1;
+                }
+                int equal = source.indexOf('=', start);
+                if (equal >= 0) return numericCompletion(source, equal + 1);
+                String prefix = source.substring(start).toLowerCase(Locale.ROOT);
+                return choices(start, prefix, core.symbols().stream().sorted().map(name -> name + "=").toList());
+            }
+            if (words.size() > index + 3) return new ExpressionValidator.Completion(source.length(), List.of());
+            if (words.size() > index + 1) {
+                Part bound = words.getLast();
+                start = bound.offset();
+                if (trailingSpace && words.size() == index + 2) {
+                    engine.validate(bound.text());
+                    start = source.length();
+                }
+            }
+            return numericCompletion(source, start);
+        }
+        int offset = trailingSpace ? source.length() : words.getLast().offset();
+        String prefix = source.substring(offset).toLowerCase(Locale.ROOT);
+        if (trailingSpace || prefix.startsWith("--")) {
+            try {
+                parse(operation, source.substring(0, offset), engine);
+            } catch (CalcCommandsException ignored) {
+                return null;
+            }
+            return choices(offset, prefix, List.of(flag + " "));
+        }
+        return null;
+    }
+
+    private static ExpressionValidator.Completion choices(int offset, String prefix, List<String> choices) {
+        return new ExpressionValidator.Completion(offset, choices.stream().filter(choice -> choice.startsWith(prefix)).toList());
+    }
+
+    private static ExpressionValidator.Completion numericCompletion(String source, int offset) {
+        ExpressionValidator.Completion completion = new ExpressionValidator(
+            source.substring(offset), FunctionDefinition.FUNCTIONS).complete();
+        return new ExpressionValidator.Completion(offset + completion.offset(), completion.candidates());
+    }
+
+    private static List<DiffRequest.Assignment> assignments(Part input, CalculatorEngine engine) {
+        List<DiffRequest.Assignment> assignments = new ArrayList<>();
+        Set<String> names = new LinkedHashSet<>();
+        for (Part item : values(input)) {
+            int equal = item.text().indexOf('=');
+            if (equal < 1 || item.text().indexOf('=', equal + 1) >= 0) {
+                throw CalcCommandsException.at("invalid_assignment", item.offset());
+            }
+            String name = item.text().substring(0, equal).toLowerCase(Locale.ROOT);
+            if (!variableName(name) || engine.reservedName(name)) {
+                throw CalcCommandsException.at("invalid_variable", item.offset(), name);
+            }
+            if (!names.add(name)) throw CalcCommandsException.at("duplicate_assignment", item.offset(), name);
+            assignments.add(new DiffRequest.Assignment(name,
+                new Part(item.text().substring(equal + 1), item.offset() + equal + 1)));
+        }
+        return assignments;
+    }
+
+    private static int integrationSuffix(List<Part> words, CalculatorEngine engine) {
+        if (words.size() >= 4) {
+            try {
+                engine.validate(words.get(words.size() - 2).text());
+                engine.validate(words.getLast().text());
+                return 3;
+            } catch (CalcCommandsException ignored) {
+                // A trailing variable instead of two numeric bounds denotes an antiderivative.
+            }
+        }
+        return !words.isEmpty() && words.getLast().text().matches("[a-zA-Z][a-zA-Z0-9_,]*") ? 1 : 3;
+    }
+
+    /** Split substitution values at top-level commas, preserving commas inside functions. */
+    private static List<Part> values(Part input) {
+        List<Part> values = new ArrayList<>();
+        int start = 0;
+        int depth = 0;
+        for (int i = 0; i <= input.text().length(); i++) {
+            char c = i == input.text().length() ? ',' : input.text().charAt(i);
+            if (c == '(') depth++;
+            if (c == ')') depth--;
+            if (c == ',' && depth == 0) {
+                values.add(new Part(input.text().substring(start, i), input.offset() + start));
+                if (values.size() > CalculatorEngine.MAX_SYMBOLIC_ITEMS) throw tooMany(input.offset() + i);
+                start = i + 1;
+            }
+        }
+        return values;
     }
 
     private static boolean variableName(String name) {
@@ -159,6 +330,10 @@ final class SymbolicRequestParser {
      * Split only at top-level whitespace; parentheses keep bounds such as (pi / 2) together.
      */
     private static List<Part> words(String source) {
+        return words(source, true);
+    }
+
+    private static List<Part> words(String source, boolean strict) {
         List<Part> parts = new ArrayList<>();
         int start = -1;
         int depth = 0;
@@ -178,8 +353,8 @@ final class SymbolicRequestParser {
             }
         }
         if (start >= 0) parts.add(new Part(source.substring(start), start));
-        if (quoted) throw CalcCommandsException.incomplete("expected_quote", source.length());
-        if (depth > 0) throw CalcCommandsException.incomplete("expected_close", source.length());
+        if (strict && quoted) throw CalcCommandsException.incomplete("expected_quote", source.length());
+        if (strict && depth > 0) throw CalcCommandsException.incomplete("expected_close", source.length());
         return parts;
     }
 }

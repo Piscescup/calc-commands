@@ -1,20 +1,26 @@
 package io.github.piscescup.fabricmc.calculation;
 
+import io.github.piscescup.fabricmc.config.Option;
+import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+
 import java.util.Set;
 
 /**
  * Common immutable input and diagnostics shared by all calculator requests.
  */
 public abstract sealed class CalcRequest
-    permits ExpressionRequest, SolveRequest, DiffRequest, IntegrateRequest
+    permits ExpressionRequest, SolveRequest, DiffRequest, IntegrateRequest, LimitRequest
 {
-    public enum Operation {
+    public enum Operation implements Option {
         EXPRESSION("expression", "<expression>"),
         SOLVE("solve", "<equations> <variables>"),
         EXPAND("expand", "<expression>"),
         FACTOR("factor", "<expression>"),
-        DIFF("diff", "<function> <variables>"),
-        INTEGRATE("integrate", "<integrand> <variable> <lower-limit> <upper-limit>");
+        SIMPLIFY("simplify", "<expression>"),
+        LIMIT("limit", "<function> <variable> <point> [both|left|right]"),
+        DIFF("diff", "<function> <variables> [--at <variable=value,...>]"),
+        INTEGRATE("integrate", "<integrand> <variable> [--internal <lower-limit> <upper-limit>]");
 
         private final String command;
         private final String arguments;
@@ -24,7 +30,9 @@ public abstract sealed class CalcRequest
             this.arguments = arguments;
         }
 
-        public String command() {
+        @NonNull
+        @Override
+        public String getValue() {
             return command;
         }
 

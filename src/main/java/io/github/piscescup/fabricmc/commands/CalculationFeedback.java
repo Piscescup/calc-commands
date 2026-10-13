@@ -4,11 +4,11 @@ import io.github.piscescup.fabricmc.calculation.CalculatorEngine;
 import io.github.piscescup.fabricmc.calculation.CalcRequest;
 import io.github.piscescup.fabricmc.calculation.DiffRequest;
 import io.github.piscescup.fabricmc.calculation.IntegrateRequest;
+import io.github.piscescup.fabricmc.calculation.LimitRequest;
 import io.github.piscescup.fabricmc.calculation.SolveRequest;
 import io.github.piscescup.fabricmc.config.NumFormatConfig;
 import io.github.piscescup.fabricmc.config.DisplayConfig;
-import java.util.ArrayList;
-import java.util.List;
+import io.github.piscescup.fabricmc.config.Options;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -16,6 +16,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import org.matheclipse.core.expression.S;
+import org.matheclipse.core.form.output.OutputFormFactory;
 import org.matheclipse.core.interfaces.IAST;
 import org.matheclipse.core.interfaces.IExpr;
 
@@ -32,11 +33,12 @@ final class CalculationFeedback {
     private CalculationFeedback() {}
 
     static Component format(CalcRequest request, CalculatorEngine.Result result) {
-        MutableComponent message = header(request.operation().command());
+        MutableComponent message = header(request.operation().getValue());
         String variables = switch (request) {
             case SolveRequest solve -> String.join(", ", solve.variables());
             case DiffRequest diff -> String.join(", ", diff.variables());
             case IntegrateRequest integral -> integral.variable();
+            case LimitRequest limit -> limit.variable();
             default -> "";
         };
         if (!variables.isEmpty()) {
@@ -44,14 +46,26 @@ final class CalculationFeedback {
         }
         String inputLabel = switch (request.operation()) {
             case SOLVE -> "equations_label";
-            case DIFF, INTEGRATE -> "function_label";
+            case DIFF, INTEGRATE, LIMIT -> "function_label";
             default -> "expression_label";
         };
         field(message, inputLabel, pretty(request.expressionSource()), ChatFormatting.GRAY);
         if (request instanceof DiffRequest diff && diff.variables().size() > 1) {
             field(message, "derivative_order_label", String.join(" → ", diff.variables()), ChatFormatting.WHITE);
         }
-        if (request instanceof IntegrateRequest integral) {
+        if (request instanceof DiffRequest diff && !diff.pointSources().isEmpty()) {
+            field(message, "at_label", diff.pointSources().stream()
+                .map(CalculationFeedback::pretty).collect(java.util.stream.Collectors.joining(", ")),
+                ChatFormatting.WHITE);
+        }
+        if (request instanceof LimitRequest limit) {
+            field(message, "point_label", pretty(limit.pointSource()), ChatFormatting.WHITE);
+            message.append("\n  ").append(Component.translatable("commands.calc.feedback.direction_label")
+                .withStyle(ChatFormatting.GRAY))
+                .append(Component.translatable("commands.calc.feedback.direction."
+                    + limit.direction().name().toLowerCase(java.util.Locale.ROOT)).withStyle(ChatFormatting.WHITE));
+        }
+        if (request instanceof IntegrateRequest integral && integral.definite()) {
             field(message, "from_label", pretty(integral.lowerBoundSource()), ChatFormatting.WHITE);
             field(message, "to_label", pretty(integral.upperBoundSource()), ChatFormatting.WHITE);
         }
@@ -65,6 +79,10 @@ final class CalculationFeedback {
                 default -> "result_label";
             };
             result(message, request.operation(), result, resultLabel);
+            if (request instanceof IntegrateRequest integral && !integral.definite()) {
+                message.append("\n  ").append(Component.translatable("commands.calc.feedback.integration_constant")
+                    .withStyle(ChatFormatting.GRAY));
+            }
         }
         return message;
     }
@@ -93,12 +111,12 @@ final class CalculationFeedback {
             CalculatorEngine.Result result, String label) {
         Optional<String> exact = result.value().isInexactNumber()
             ? NumFormatConfig.formatApproximate(operation, result.exact())
-            : NumFormatConfig.format(operation, result.exact());
-        field(message, label, exact.orElseGet(() -> prettyResult(result.exact())), ChatFormatting.GREEN);
+            : NumFormatConfig.format(operation, result.value());
+        field(message, label, exact.orElseGet(() -> prettyResult(result.value())), ChatFormatting.GREEN);
         if (result.approximate() != null) {
             Optional<String> approximate = NumFormatConfig.formatApproximate(operation, result.approximate());
             field(message, "approximate_label",
-                approximate.orElseGet(() -> prettyResult(result.approximate())), ChatFormatting.YELLOW);
+                approximate.orElseGet(() -> pretty(result.approximate())), ChatFormatting.YELLOW);
         }
     }
 
@@ -112,38 +130,48 @@ final class CalculationFeedback {
         }
         for (int i = 1; i < solutions.size(); i++) {
             IExpr solution = solutions.get(i);
-            message.append("\n    ");
-            if (solutions.size() > 2) {
-                message.append(Component.translatable("commands.calc.feedback.solution", i).withStyle(ChatFormatting.GRAY));
+            boolean multiple = solutions.size() > 2;
+            String indentation = multiple ? "\n      " : "\n    ";
+            if (multiple) {
+                message.append("\n    ")
+                    .append(Component.translatable("commands.calc.feedback.solution", i).withStyle(ChatFormatting.GRAY));
             }
             if (solution instanceof IAST assignments && assignments.isList()) {
                 if (assignments.size() == 1) {
-                    message.append(Component.translatable("commands.calc.feedback.all_reals").withStyle(ChatFormatting.GREEN));
+                    message.append(indentation)
+                        .append(Component.translatable("commands.calc.feedback.all_values").withStyle(ChatFormatting.GREEN));
                     continue;
                 }
-                List<String> values = new ArrayList<>();
                 for (int j = 1; j < assignments.size(); j++) {
                     IExpr assignment = assignments.get(j);
+                    String value;
                     if (assignment instanceof IAST rule && rule.head().equals(S.Rule) && rule.size() == 3) {
-                        values.add(pretty(rule.arg1().toString()) + " = "
-                            + display(CalcRequest.Operation.SOLVE, rule.arg2().toString()));
+                        value = pretty(rule.arg1().toString()) + " = "
+                            + display(CalcRequest.Operation.SOLVE, rule.arg2());
                     } else {
-                        values.add(prettyResult(assignment.toString()));
+                        value = prettyResult(assignment);
                     }
+                    message.append(indentation).append(Component.literal(value).withStyle(ChatFormatting.GREEN));
                 }
-                message.append(Component.literal(String.join(",  ", values)).withStyle(ChatFormatting.GREEN));
             } else {
-                message.append(Component.literal(prettyResult(solution.toString())).withStyle(ChatFormatting.GREEN));
+                message.append(indentation)
+                    .append(Component.literal(prettyResult(solution)).withStyle(ChatFormatting.GREEN));
             }
         }
     }
 
-    private static String display(CalcRequest.Operation operation, String source) {
-        return NumFormatConfig.format(operation, source).orElseGet(() -> prettyResult(source));
+    private static String display(CalcRequest.Operation operation, IExpr value) {
+        Optional<String> formatted = value.isInexactNumber()
+            ? NumFormatConfig.formatApproximate(operation, value.toString())
+            : NumFormatConfig.format(operation, value);
+        return formatted.orElseGet(() -> prettyResult(value));
     }
 
-    private static String prettyResult(String source) {
-        return pretty(DisplayConfig.arrangeTerms(source));
+    private static String prettyResult(IExpr value) {
+        // Format the existing expression directly; reversing Plus affects presentation only.
+        boolean descending = Options.PowerOrder.DESCENDING.getValue()
+            .equals(DisplayConfig.get(DisplayConfig.POWER_ORDER_KEY));
+        return pretty(OutputFormFactory.get(true, descending).toString(value));
     }
 
     /** A display scanner preserves unary signs, fractions, parentheses and scientific exponents. */
@@ -163,7 +191,8 @@ final class CalculationFeedback {
             }
             if (name.region(i, source.length()).lookingAt()) {
                 String token = name.group();
-                out.append(token.equalsIgnoreCase("pi") ? "π" : FUNCTIONS.getOrDefault(token, token));
+                out.append(token.equalsIgnoreCase("pi") ? "π"
+                    : token.equalsIgnoreCase("i") ? "I" : FUNCTIONS.getOrDefault(token, token));
                 i = name.end();
                 operand = true;
                 continue;

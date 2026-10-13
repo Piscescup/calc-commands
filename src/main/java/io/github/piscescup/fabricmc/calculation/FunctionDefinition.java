@@ -28,7 +28,13 @@ record FunctionDefinition(
     static final FunctionDefinition ABS = new FunctionDefinition("abs", 1, 1);
     static final FunctionDefinition CEIL = new FunctionDefinition("ceil", 1, 1);
     static final FunctionDefinition FLOOR = new FunctionDefinition("floor", 1, 1);
-    static final FunctionDefinition ROUND = new FunctionDefinition("round", 1, 1);
+    static final FunctionDefinition ROUND = new FunctionDefinition("round", 1, 2);
+    static final FunctionDefinition CEILDIV = new FunctionDefinition("ceildiv", 2, 2);
+    static final FunctionDefinition GCD = new FunctionDefinition("gcd", 2, MAX_ARGUMENTS);
+    static final FunctionDefinition LCM = new FunctionDefinition("lcm", 2, MAX_ARGUMENTS);
+    static final FunctionDefinition HYPOT = new FunctionDefinition("hypot", 2, MAX_ARGUMENTS);
+    static final FunctionDefinition RAD = new FunctionDefinition("rad", 1, 1);
+    static final FunctionDefinition DEG = new FunctionDefinition("deg", 1, 1);
     static final FunctionDefinition LN = new FunctionDefinition("ln", 1, 1);
     static final FunctionDefinition LG = new FunctionDefinition("lg", 1, 1);
     static final FunctionDefinition LOG2 = new FunctionDefinition("log2", 1, 1);
@@ -42,16 +48,21 @@ record FunctionDefinition(
     static final FunctionDefinition N = new FunctionDefinition("n", 1, 2);
 
     /** Shared immutable registry used for validation and command suggestions. */
-    static final Map<String, FunctionDefinition> FUNCTIONS = createFunctions();
+    static final Map<String, FunctionDefinition> FUNCTIONS;
 
-    private static Map<String, FunctionDefinition> createFunctions() {
-        Map<String, FunctionDefinition> names = new LinkedHashMap<>();
-        for (FunctionDefinition function : List.of(
-                SIN, COS, TAN, ASIN, ACOS, ATAN, SINH, COSH, TANH,
-                SQRT, ABS, CEIL, FLOOR, ROUND, LN, LG, LOG2,
-                LOG, ATAN2, MIN, MAX, SUM, AVG, RANDOM, N)) {
-            names.put(function.name(), function);
-        }
-        return Map.copyOf(names);
+    static final List<FunctionDefinition> DEFINITIONS = List.of(
+        SIN, COS, TAN,
+        ASIN, ACOS, ATAN, ATAN2,
+        SINH, COSH, TANH,
+        ABS, SQRT, LN, LG, LOG, LOG2,
+        CEIL, FLOOR, ROUND, CEILDIV,
+        GCD, LCM, HYPOT, RAD, DEG,
+        MIN, MAX, SUM, AVG, RANDOM, N
+    );
+
+    static {
+        Map<String, FunctionDefinition> functions = new LinkedHashMap<>();
+        DEFINITIONS.forEach(function -> functions.put(function.name(), function));
+        FUNCTIONS = Map.copyOf(functions);
     }
 }

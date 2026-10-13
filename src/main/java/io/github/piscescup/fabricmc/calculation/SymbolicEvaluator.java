@@ -66,6 +66,7 @@ final class SymbolicEvaluator {
 
     private final EvalEngine engine;
     private long deadline;
+    private boolean complexEnabled;
 
     SymbolicEvaluator() {
         F.initSymja();
@@ -91,7 +92,8 @@ final class SymbolicEvaluator {
         evaluate(() -> build("sin(2*pi)+cos(2*pi)+sqrt(2)", null, Map.of()).value(), false);
     }
 
-    CalculatorEngine.Result evaluate(CalcRequest request, CalculatorEngine.Result answer) {
+    CalculatorEngine.Result evaluate(CalcRequest request, CalculatorEngine.Result answer, boolean complex) {
+        complexEnabled = complex;
         if (request.operation() == CalcRequest.Operation.INTEGRATE) awaitIntegrationRules();
         return evaluate(() -> {
             Map<String, IExpr> symbols = symbols(answer);
@@ -101,15 +103,29 @@ final class SymbolicEvaluator {
                     case EXPRESSION -> build(expression.expression(), answer, symbols);
                     case EXPAND -> F.Expand(build(expression.expression(), answer, symbols));
                     case FACTOR -> F.Factor(build(expression.expression(), answer, symbols));
+                    case SIMPLIFY -> F.Simplify(build(expression.expression(), answer, symbols));
                     default -> throw CalcCommandsException.error("evaluation_failed");
                 };
                 case DiffRequest diff -> {
                     IASTAppendable derivative = F.ast(S.D, diff.variables().size() + 1);
                     derivative.append(build(diff.expression(), answer, symbols));
                     for (String variable : diff.variables()) derivative.append(symbols.get(variable));
-                    yield derivative;
+                    if (diff.assignments().isEmpty()) yield derivative;
+                    IExpr differentiated = calculate(derivative);
+                    IASTAppendable rules = F.ast(S.List, diff.assignments().size());
+                    for (DiffRequest.Assignment assignment : diff.assignments()) {
+                        IExpr point = finitePoint(assignment.value(), answer, complex);
+                        rules.append(F.Rule(symbols.get(assignment.variable()), point));
+                    }
+                    IASTAppendable substitute = F.ast(S.ReplaceAll, 2);
+                    substitute.append(differentiated);
+                    substitute.append(rules);
+                    yield substitute;
                 }
                 case IntegrateRequest integral -> {
+                    if (!integral.definite()) {
+                        yield F.Integrate(build(integral.expression(), answer, symbols), symbols.get(integral.variable()));
+                    }
                     IExpr from = calculate(build(integral.lowerBound(), answer, Map.of()));
                     IExpr to = calculate(build(integral.upperBound(), answer, Map.of()));
                     if (!calculate(F.N(from)).isReal() || !calculate(F.N(to)).isReal()) {
@@ -117,6 +133,21 @@ final class SymbolicEvaluator {
                     }
                     yield F.Integrate(build(integral.expression(), answer, symbols),
                         F.List(symbols.get(integral.variable()), from, to));
+                }
+                case LimitRequest limit -> {
+                    IExpr point = SymbolicRequestParser.infinity(limit.pointSource())
+                        ? (limit.pointSource().startsWith("-") ? F.CNInfinity : F.CInfinity)
+                        : finitePoint(limit.point(), answer, false);
+                    IExpr direction = switch (limit.direction()) {
+                        case BOTH -> S.Reals;
+                        case LEFT -> F.C1;
+                        case RIGHT -> F.CN1;
+                    };
+                    IASTAppendable expression = F.ast(S.Limit, 3);
+                    expression.append(build(limit.expression(), answer, symbols));
+                    expression.append(F.Rule(symbols.get(limit.variable()), point));
+                    expression.append(F.Rule(S.Direction, direction));
+                    yield expression;
                 }
                 case SolveRequest solveRequest -> {
                     IASTAppendable equations = F.ast(S.List, solveRequest.equations().size());
@@ -129,12 +160,21 @@ final class SymbolicEvaluator {
                     IASTAppendable solve = F.ast(S.Solve, 3);
                     solve.append(equations);
                     solve.append(variables);
-                    solve.append(S.Reals);
+                    solve.append(complex ? S.Complexes : S.Reals);
                     yield solve;
                 }
             };
         }, request.operation() != CalcRequest.Operation.EXPRESSION
-            || answer != null && !symbols(answer).isEmpty());
+            || answer != null && !symbols(answer).isEmpty(), request.operation() == CalcRequest.Operation.LIMIT, complex);
+    }
+
+    private IExpr finitePoint(CalcRequest.Part point, CalculatorEngine.Result answer, boolean complex) {
+        IExpr value = calculate(build(point, answer, Map.of()));
+        IExpr decimal = calculate(F.N(value));
+        if (!(decimal.isReal() || complex && decimal.isNumber())) {
+            throw CalcCommandsException.at("invalid_point", point.offset());
+        }
+        return value;
     }
 
     /** The library initializes Rubi on another thread; that one-time wait is not user calculation. */
@@ -156,6 +196,10 @@ final class SymbolicEvaluator {
     }
 
     private CalculatorEngine.Result evaluate(Supplier<IExpr> input, boolean symbolic) {
+        return evaluate(input, symbolic, false, false);
+    }
+
+    private CalculatorEngine.Result evaluate(Supplier<IExpr> input, boolean symbolic, boolean allowInfinity, boolean complex) {
         EvalEngine.set(engine);
         engine.init();
         deadline = System.currentTimeMillis() + 2000;
@@ -166,7 +210,10 @@ final class SymbolicEvaluator {
         try {
             IExpr value = calculate(input.get());
             checkTree(value);
-            checkResult(value);
+            if (allowInfinity && (value.isInfinity() || value.isNegativeInfinity())) {
+                return new CalculatorEngine.Result(value, text(value), null);
+            }
+            checkResult(value, complex);
             if (value.isDirectedInfinity()) throw CalcCommandsException.error("division_by_zero");
             if (symbolic && unresolved(value)) throw CalcCommandsException.error("symbolic_failed");
             if (value.isList()) {
@@ -174,7 +221,7 @@ final class SymbolicEvaluator {
                 return new CalculatorEngine.Result(value, text(value), null);
             }
             IExpr decimal = calculate(F.N(value, F.ZZ(30)));
-            if (!decimal.isReal()) {
+            if (!(decimal.isReal() || complex && decimal.isNumber())) {
                 if (!symbolic || value.isNumber()) throw CalcCommandsException.error("undefined_result");
                 return new CalculatorEngine.Result(value, text(value), null);
             }
@@ -229,20 +276,24 @@ final class SymbolicEvaluator {
         pending.push(expression);
         while (!pending.isEmpty()) {
             if (pending.pop() instanceof IAST ast) {
-                if (ast.head().equals(S.Solve) || ast.head().equals(S.Integrate) || ast.head().equals(S.D)) return true;
+                if (ast.head().equals(S.Solve) || ast.head().equals(S.Integrate)
+                        || ast.head().equals(S.D) || ast.head().equals(S.Limit) || ast.head().equals(S.Simplify)) return true;
                 for (int i = 1; i < ast.size(); i++) pending.push(ast.get(i));
             }
         }
         return false;
     }
 
-    private static void checkResult(IExpr expression) {
+    private static void checkResult(IExpr expression, boolean complex) {
         Deque<IExpr> pending = new ArrayDeque<>();
         pending.push(expression);
         while (!pending.isEmpty()) {
             IExpr value = pending.pop();
             if (value.isIndeterminate()) throw CalcCommandsException.error("undefined_result");
             if (value.isDirectedInfinity()) throw CalcCommandsException.error("undefined_result");
+            if (!complex && value.isNumber() && !value.isReal()) {
+                throw CalcCommandsException.error("complex_disabled");
+            }
             if (value instanceof IAST ast) {
                 for (int i = 1; i < ast.size(); i++) pending.push(ast.get(i));
             }
@@ -267,6 +318,7 @@ final class SymbolicEvaluator {
                     IExpr constant = switch (token.text()) {
                         case "pi" -> S.Pi;
                         case "e" -> S.E;
+                        case "i" -> F.CI;
                         case "ans" -> answer == null ? F.C0 : answer.value();
                         default -> symbols.get(token.text());
                     };
@@ -406,7 +458,33 @@ final class SymbolicEvaluator {
         } else if (function == FunctionDefinition.FLOOR) {
             value = F.Floor(args[0]);
         } else if (function == FunctionDefinition.ROUND) {
-            value = F.Floor(F.Plus(args[0], F.C1D2));
+            IExpr digits = args.length == 1 ? F.C0 : calculate(args[1]);
+            int places = digits.toIntDefault(Integer.MIN_VALUE);
+            if (!digits.isInteger() || places < -CalculatorEngine.MAX_PRECISION
+                    || places > CalculatorEngine.MAX_PRECISION) {
+                throw CalcCommandsException.at("invalid_round_digits", 0,
+                    CalculatorEngine.MAX_PRECISION, CalculatorEngine.MAX_PRECISION);
+            }
+            IExpr scale = F.Power(F.C10, digits);
+            // Preserve the original tie rule: halfway values round toward positive infinity.
+            value = F.Divide(F.Floor(F.Plus(F.Times(args[0], scale), F.C1D2)), scale);
+        } else if (function == FunctionDefinition.CEILDIV) {
+            IExpr dividend = integerArgument(function, args[0]);
+            IExpr divisor = integerArgument(function, args[1]);
+            if (divisor.isZero()) throw CalcCommandsException.error("division_by_zero");
+            value = F.Ceiling(F.Divide(dividend, divisor));
+        } else if (function == FunctionDefinition.GCD || function == FunctionDefinition.LCM) {
+            IASTAppendable ast = F.ast(function == FunctionDefinition.GCD ? S.GCD : S.LCM, args.length);
+            for (IExpr arg : args) ast.append(integerArgument(function, arg));
+            value = ast;
+        } else if (function == FunctionDefinition.HYPOT) {
+            IASTAppendable squares = F.ast(S.Plus, args.length);
+            for (IExpr arg : args) squares.append(F.Power(arg, F.C2));
+            value = F.Sqrt(squares);
+        } else if (function == FunctionDefinition.RAD) {
+            value = F.Divide(F.Times(args[0], S.Pi), F.ZZ(180));
+        } else if (function == FunctionDefinition.DEG) {
+            value = F.Divide(F.Times(args[0], F.ZZ(180)), S.Pi);
         } else if (function == FunctionDefinition.LN) {
             value = F.Log(args[0]);
         } else if (function == FunctionDefinition.LG) {
@@ -416,7 +494,8 @@ final class SymbolicEvaluator {
         } else if (function == FunctionDefinition.LOG) {
             IExpr base = calculate(args[0]);
             IExpr argument = calculate(args[1]);
-            if (base.isOne() || base.isZero() || base.isNegativeResult() || argument.isZero() || argument.isNegativeResult()) {
+            if (base.isOne() || base.isZero() || argument.isZero()
+                    || !complexEnabled && (base.isNegativeResult() || argument.isNegativeResult())) {
                 throw CalcCommandsException.at("function_domain", 0, function.name());
             }
             value = F.Log(base, argument); // Preserve log(base, value).
@@ -440,7 +519,15 @@ final class SymbolicEvaluator {
         } else {
             throw CalcCommandsException.error("evaluation_failed");
         }
-        return node(value, depth + 2);
+        return node(value, Math.max(depth + 2, checkTree(value)));
+    }
+
+    private IExpr integerArgument(FunctionDefinition function, IExpr argument) {
+        IExpr value = calculate(argument);
+        if (!value.isInteger()) {
+            throw CalcCommandsException.at("integer_arguments", 0, function.name());
+        }
+        return value;
     }
 
     private static IExpr number(String literal) {

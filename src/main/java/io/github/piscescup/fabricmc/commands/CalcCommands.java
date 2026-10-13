@@ -12,6 +12,8 @@ import io.github.piscescup.fabricmc.References;
 import io.github.piscescup.fabricmc.calculation.CalculatorEngine;
 import io.github.piscescup.fabricmc.calculation.CalcCommandsException;
 import io.github.piscescup.fabricmc.calculation.CalcRequest;
+import io.github.piscescup.fabricmc.config.DisplayConfig;
+import io.github.piscescup.fabricmc.config.Options;
 
 import java.util.function.Supplier;
 
@@ -73,7 +75,7 @@ public final class CalcCommands {
     ) {
         var root = literal("calculate").then(buildHelpCommand());
         for (var operation : CalcRequest.Operation.values()) {
-            root.then(literal(operation.command())
+            root.then(literal(operation.getValue())
                 .then(argument("input", new ExpressionArgument(ENGINE, operation)).executes(CalcCommands::execute)));
         }
         ConfigCommands.register(root);
@@ -89,8 +91,9 @@ public final class CalcCommands {
 
     private static int execute(CommandContext<FabricClientCommandSource> context) throws CommandSyntaxException {
         CalcRequest request = context.getArgument("input", CalcRequest.class);
+        boolean complex = Options.AbleOption.ENABLE.getValue().equals(DisplayConfig.get(DisplayConfig.COMPLEX_KEY));
         return submit(
-            context, () -> ENGINE.evaluate(request, answer),
+            context, () -> ENGINE.evaluate(request, answer, complex),
             result -> CalculationFeedback.format(request, result)
         );
     }
@@ -134,7 +137,7 @@ public final class CalcCommands {
         context.getSource()
             .sendFeedback(helpMessage("commands.calc.help.header"));
         for (CalcRequest.Operation operation : CalcRequest.Operation.values()) {
-            sendCommandHelp(context, operation.command());
+            sendCommandHelp(context, operation.getValue());
         }
         sendCommandHelp(context, "numfmt");
         sendCommandHelp(context, "config");
@@ -146,8 +149,8 @@ public final class CalcCommands {
     static LiteralArgumentBuilder<FabricClientCommandSource> buildHelpCommand() {
         LiteralArgumentBuilder<FabricClientCommandSource> help = literal("help").executes(CalcCommands::help);
         for (CalcRequest.Operation operation : CalcRequest.Operation.values()) {
-            help.then(literal(operation.command())
-                .executes(context -> detailedHelp(context, operation.command())));
+            help.then(literal(operation.getValue())
+                .executes(context -> detailedHelp(context, operation.getValue())));
         }
         help.then(literal("numfmt").executes(context -> detailedHelp(context, "numfmt")));
         help.then(literal("config").executes(context -> detailedHelp(context, "config")));
@@ -168,18 +171,21 @@ public final class CalcCommands {
             .append(Component.translatable("commands.calc.help.detail." + command + ".params"));
         helpDetail(message, "usage_label", "detail." + command + ".usage");
         switch (command) {
-            case "expression" -> helpBullet(
-                message, "commands.calc.help.functions",
-                String.join(", ", ENGINE.functionNames())
-            );
-            case "solve", "diff", "integrate" -> helpBullet(
+            case "expression" -> {
+                helpBullet(message, "commands.calc.help.functions", String.join(", ", ENGINE.functionNames()));
+                helpBullet(message, "commands.calc.help.numeric_functions");
+            }
+            case "solve", "diff", "integrate", "limit" -> helpBullet(
                 message, "commands.calc.help.symbolic_variables");
             case "numfmt" -> {
                 helpBullet(message, "commands.calc.help.numfmt.scope");
                 helpBullet(message, "commands.calc.help.numfmt.format");
                 helpBullet(message, "commands.calc.help.numfmt.template");
             }
-            case "config" -> helpBullet(message, "commands.calc.help.config.power_order");
+            case "config" -> {
+                helpBullet(message, "commands.calc.help.config.power_order");
+                helpBullet(message, "commands.calc.help.config.complex");
+            }
             default -> {
             }
         }

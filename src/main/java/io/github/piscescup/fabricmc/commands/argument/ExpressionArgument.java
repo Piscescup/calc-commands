@@ -68,8 +68,10 @@ public final class ExpressionArgument implements ArgumentType<CalcRequest> {
             case SOLVE -> List.of("x^2-4=0 x", "2*x+y=10; x+y=7 x,y");
             case EXPAND -> List.of("(x+1)^3");
             case FACTOR -> List.of("x^2-1");
-            case DIFF -> List.of("sin(x) x", "x^2*y x,y");
-            case INTEGRATE -> List.of("x^2 x 0 3", "sin(x) x 0 pi");
+            case SIMPLIFY -> List.of("(x^2-1)/(x-1)", "sin(x)^2+cos(x)^2");
+            case LIMIT -> List.of("sin(x)/x x 0", "1/x x inf", "abs(x)/x x 0 left");
+            case DIFF -> List.of("sin(x) x", "x^2*y x,y", "x^2*y x --at x=2,y=3");
+            case INTEGRATE -> List.of("x^2 x", "x^2 x --internal 0 3", "sin(x) x --internal 0 pi");
         };
     }
 
