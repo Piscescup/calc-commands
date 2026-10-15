@@ -17,10 +17,10 @@
 	"environment": "client",
 	"entrypoints": {
 		"client": [
-          "io.github.piscescup.fabricmc.CalcCommandsClient"
+          "io.github.piscescup.calccmd.CalcCommandsClient"
 		],
 		"fabric-datagen": [
-			"io.github.piscescup.fabricmc.CalcCommandsDataGenerator"
+			"io.github.piscescup.calccmd.CalcCommandsDataGenerator"
 		]
 	},
 	"depends": {
